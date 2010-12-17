@@ -3057,9 +3057,42 @@ cleanup:
 int qemuMonitorJSONAddDrive(qemuMonitorPtr mon,
                             const char *drivestr)
 {
-    int ret;
+    int ret = -1;
     virJSONValuePtr cmd;
     virJSONValuePtr reply = NULL;
+    virJSONValuePtr args;
+
+    cmd = qemuMonitorJSONMakeCommand("__com.redhat_drive_add",
+                                     NULL);
+    if (!cmd)
+        return -1;
+
+    args = qemuMonitorJSONKeywordStringToJSON(drivestr, "type");
+    if (!args)
+        goto cleanup;
+
+    /* __com.redhat_drive_add rejects the 'if' key */
+    virJSONValueObjectRemoveKey(args, "if");
+
+    if (virJSONValueObjectAppend(cmd, "arguments", args) < 0) {
+        virReportOOMError();
+        goto cleanup;
+    }
+    args = NULL; /* cmd owns reference to args now */
+
+    if ((ret = qemuMonitorJSONCommand(mon, cmd, &reply) < 0))
+        goto cleanup;
+
+    if (qemuMonitorJSONHasError(reply, "CommandNotFound")) {
+        virJSONValueFree(cmd);
+        virJSONValueFree(reply);
+
+        VIR_DEBUG("__com.redhat_drive_add command not found,"
+                   " trying upstream way");
+    } else {
+        ret = qemuMonitorJSONCheckError(cmd, reply);
+        goto cleanup;
+    }
 
     cmd = qemuMonitorJSONMakeCommand("drive_add",
                                      "s:pci_addr", "dummy",
@@ -3080,6 +3113,7 @@ int qemuMonitorJSONAddDrive(qemuMonitorPtr mon,
     ret = qemuMonitorJSONCheckError(cmd, reply);
 
 cleanup:
+    virJSONValueFree(args);
     virJSONValueFree(cmd);
     virJSONValueFree(reply);
     return ret;
@@ -3094,6 +3128,34 @@ int qemuMonitorJSONDriveDel(qemuMonitorPtr mon,
     virJSONValuePtr reply = NULL;
 
     VIR_DEBUG("JSONDriveDel drivestr=%s", drivestr);
+    /* RHEL 6 lacks drive_del, but has __com.redhat_drive_del; try
+     * that first */
+    cmd = qemuMonitorJSONMakeCommand("__com.redhat_drive_del",
+                                     "s:id", drivestr,
+                                     NULL);
+    if (!cmd)
+        return -1;
+
+    if ((ret = qemuMonitorJSONCommand(mon, cmd, &reply)) < 0)
+        goto cleanup;
+
+    if (qemuMonitorJSONHasError(reply, "CommandNotFound")) {
+        virJSONValueFree(cmd);
+        virJSONValueFree(reply);
+
+        VIR_DEBUG("__com.redhat_drive_del command not found,"
+                   " trying upstream way");
+    } else if (qemuMonitorJSONHasError(reply, "DeviceNotFound")) {
+        /* NB: device not found errors mean the drive was
+         * auto-deleted and we ignore the error */
+        ret = 0;
+        goto cleanup;
+    } else {
+        ret = qemuMonitorJSONCheckError(cmd, reply);
+        goto cleanup;
+    }
+
+    /* Upstream approach */
     cmd = qemuMonitorJSONMakeCommand("drive_del",
                                      "s:id", drivestr,
                                      NULL);

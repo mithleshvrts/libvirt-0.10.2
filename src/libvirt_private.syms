@@ -750,6 +750,7 @@ virJSONValueObjectGetValue;
 virJSONValueObjectHasKey;
 virJSONValueObjectIsNull;
 virJSONValueObjectKeysNumber;
+virJSONValueObjectRemoveKey;
 virJSONValueToString;
 
 
