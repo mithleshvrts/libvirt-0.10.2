@@ -96,6 +96,8 @@ static qemuEventHandler eventHandlers[] = {
     { "VNC_INITIALIZED", qemuMonitorJSONHandleVNCInitialize, },
     { "WAKEUP", qemuMonitorJSONHandlePMWakeup, },
     { "WATCHDOG", qemuMonitorJSONHandleWatchdog, },
+    { "__com.redhat_SPICE_INITIALIZED", qemuMonitorJSONHandleSPICEInitialize, },
+    { "__com.redhat_SPICE_DISCONNECTED", qemuMonitorJSONHandleSPICEDisconnect, },
     /* We use bsearch, so keep this list sorted.  */
 };
 
