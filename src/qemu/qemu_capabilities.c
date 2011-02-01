@@ -183,6 +183,7 @@ VIR_ENUM_IMPL(qemuCaps, QEMU_CAPS_LAST,
 
               "reboot-timeout", /* 110 */
               "dump-guest-core",
+              "disable-ksm", /* 112 */
     );
 
 struct _qemuCaps {
@@ -1226,6 +1227,9 @@ qemuCapsComputeCmdFlags(const char *help,
         strstr(help, "threads=") &&
         strstr(help, "sockets="))
         qemuCapsSet(caps, QEMU_CAPS_SMP_TOPOLOGY);
+
+    if (strstr(help, "-redhat-disable-KSM"))
+        qemuCapsSet(caps, QEMU_CAPS_DISABLE_KSM);
 
     if (version >= 9000)
         qemuCapsSet(caps, QEMU_CAPS_VNC_COLON);

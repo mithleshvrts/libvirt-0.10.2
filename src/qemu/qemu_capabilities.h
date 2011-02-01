@@ -148,6 +148,8 @@ enum qemuCapsFlags {
     QEMU_CAPS_REBOOT_TIMEOUT     = 110, /* -boot reboot-timeout */
     QEMU_CAPS_DUMP_GUEST_CORE    = 111, /* dump-guest-core-parameter */
 
+    QEMU_CAPS_DISABLE_KSM           , /* Is '-redhat-disable-KSM' available? */
+
     QEMU_CAPS_LAST,                   /* this must always be the last item */
 };
 

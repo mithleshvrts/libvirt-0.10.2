@@ -541,7 +541,8 @@ mymain(void)
             QEMU_CAPS_VIRTIO_BLK_SCSI,
             QEMU_CAPS_VIRTIO_BLK_SG_IO,
             QEMU_CAPS_CPU_HOST,
-            QEMU_CAPS_BLOCKIO);
+            QEMU_CAPS_BLOCKIO,
+            QEMU_CAPS_DISABLE_KSM);
     DO_TEST("qemu-kvm-0.12.1.2-rhel62-beta", 12001, 1, 0,
             QEMU_CAPS_VNC_COLON,
             QEMU_CAPS_NO_REBOOT,
@@ -609,7 +610,8 @@ mymain(void)
             QEMU_CAPS_DRIVE_COPY_ON_READ,
             QEMU_CAPS_CPU_HOST,
             QEMU_CAPS_SCSI_CD,
-            QEMU_CAPS_BLOCKIO);
+            QEMU_CAPS_BLOCKIO,
+            QEMU_CAPS_DISABLE_KSM);
     DO_TEST("qemu-1.0", 1000000, 0, 0,
             QEMU_CAPS_VNC_COLON,
             QEMU_CAPS_NO_REBOOT,
