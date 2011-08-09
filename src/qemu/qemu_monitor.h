@@ -286,6 +286,11 @@ int qemuMonitorBlockResize(qemuMonitorPtr mon,
                            unsigned long long size);
 int qemuMonitorSetVNCPassword(qemuMonitorPtr mon,
                               const char *password);
+int qemuMonitorSetPasswordRH(qemuMonitorPtr mon,
+                             int type,
+                             const char *password,
+                             const char *action_if_connected,
+                             int expiry);
 int qemuMonitorSetPassword(qemuMonitorPtr mon,
                            int type,
                            const char *password,
