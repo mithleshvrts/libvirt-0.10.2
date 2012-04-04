@@ -3048,6 +3048,14 @@ qemuBuildNicDevStr(virDomainNetDefPtr net,
             virBufferAsprintf(&buf, ",event_idx=%s",
                               virDomainVirtioEventIdxTypeToString(net->driver.virtio.event_idx));
         }
+        /* Always add this option if it's available and the interface
+         * is macvtap. qemu will decide if it's really necessary for
+         * the current machine-type.
+         */
+        if (virDomainNetGetActualType(net) == VIR_DOMAIN_NET_TYPE_DIRECT &&
+            qemuCapsGet(caps, QEMU_CAPS_VIRTIO_NET_MACVTAP_COMPAT)) {
+            virBufferAddLit(&buf, ",__com_redhat_macvtap_compat=on");
+        }
     }
     if (vlan == -1)
         virBufferAsprintf(&buf, ",netdev=host%s", net->info.alias);

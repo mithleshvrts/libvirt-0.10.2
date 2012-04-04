@@ -184,6 +184,7 @@ VIR_ENUM_IMPL(qemuCaps, QEMU_CAPS_LAST,
               "reboot-timeout", /* 110 */
               "dump-guest-core",
               "disable-ksm", /* 112 */
+              "virtio-net-pci.__com_redhat_macvtap_compat", /* RHEL-specific */
     );
 
 struct _qemuCaps {
@@ -1601,6 +1602,8 @@ qemuCapsParseDeviceStr(const char *str, qemuCapsPtr caps)
         qemuCapsSet(caps, QEMU_CAPS_DISABLE_S3);
     if (strstr(str, "PIIX4_PM.disable_s4="))
         qemuCapsSet(caps, QEMU_CAPS_DISABLE_S4);
+    if (strstr(str, "virtio-net-pci.__com_redhat_macvtap_compat"))
+        qemuCapsSet(caps, QEMU_CAPS_VIRTIO_NET_MACVTAP_COMPAT);
 
     return 0;
 }

@@ -149,6 +149,7 @@ enum qemuCapsFlags {
     QEMU_CAPS_DUMP_GUEST_CORE    = 111, /* dump-guest-core-parameter */
 
     QEMU_CAPS_DISABLE_KSM           , /* Is '-redhat-disable-KSM' available? */
+    QEMU_CAPS_VIRTIO_NET_MACVTAP_COMPAT, /* virtio-net-pci.__com_redhat_macvtap_compat */
 
     QEMU_CAPS_LAST,                   /* this must always be the last item */
 };
