@@ -185,6 +185,12 @@ VIR_ENUM_IMPL(qemuCaps, QEMU_CAPS_LAST,
               "dump-guest-core",
               "disable-ksm", /* 112 */
               "virtio-net-pci.__com_redhat_macvtap_compat", /* RHEL-specific */
+               /* RHEL-only for now; the name 'drive-reopen' is
+                * essential for XML compatibility, even though the
+                * upstream command was renamed
+                * 'block-job-complete'.  */
+               "drive-mirror",
+               "drive-reopen",
     );
 
 struct _qemuCaps {
