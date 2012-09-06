@@ -7520,11 +7520,12 @@ error:
     return NULL;
 }
 
-static int virDomainLifecycleParseXML(xmlXPathContextPtr ctxt,
-                                      const char *xpath,
-                                      int *val,
-                                      int defaultVal,
-                                      virLifecycleFromStringFunc convFunc)
+static int virDomainEventActionParseXML(xmlXPathContextPtr ctxt,
+                                        const char *name,
+                                        const char *xpath,
+                                        int *val,
+                                        int defaultVal,
+                                        virEventActionFromStringFunc convFunc)
 {
     char *tmp = virXPathString(xpath, ctxt);
     if (tmp == NULL) {
@@ -7533,7 +7534,7 @@ static int virDomainLifecycleParseXML(xmlXPathContextPtr ctxt,
         *val = convFunc(tmp);
         if (*val < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("unknown lifecycle action %s"), tmp);
+                           _("unknown %s action: %s"), name, tmp);
             VIR_FREE(tmp);
             return -1;
         }
@@ -8947,20 +8948,25 @@ static virDomainDefPtr virDomainDefParseXML(virCapsPtr caps,
         VIR_FREE(nodes);
     }
 
-    if (virDomainLifecycleParseXML(ctxt, "string(./on_reboot[1])",
-                                   &def->onReboot, VIR_DOMAIN_LIFECYCLE_RESTART,
-                                   virDomainLifecycleTypeFromString) < 0)
+    if (virDomainEventActionParseXML(ctxt, "on_reboot",
+                                     "string(./on_reboot[1])",
+                                     &def->onReboot,
+                                     VIR_DOMAIN_LIFECYCLE_RESTART,
+                                     virDomainLifecycleTypeFromString) < 0)
         goto error;
 
-    if (virDomainLifecycleParseXML(ctxt, "string(./on_poweroff[1])",
-                                   &def->onPoweroff, VIR_DOMAIN_LIFECYCLE_DESTROY,
-                                   virDomainLifecycleTypeFromString) < 0)
+    if (virDomainEventActionParseXML(ctxt, "on_poweroff",
+                                     "string(./on_poweroff[1])",
+                                     &def->onPoweroff,
+                                     VIR_DOMAIN_LIFECYCLE_DESTROY,
+                                     virDomainLifecycleTypeFromString) < 0)
         goto error;
 
-    if (virDomainLifecycleParseXML(ctxt, "string(./on_crash[1])",
-                                        &def->onCrash,
-                                   VIR_DOMAIN_LIFECYCLE_CRASH_DESTROY,
-                                   virDomainLifecycleCrashTypeFromString) < 0)
+    if (virDomainEventActionParseXML(ctxt, "on_crash",
+                                     "string(./on_crash[1])",
+                                     &def->onCrash,
+                                     VIR_DOMAIN_LIFECYCLE_CRASH_DESTROY,
+                                     virDomainLifecycleCrashTypeFromString) < 0)
         goto error;
 
     if (virDomainPMStateParseXML(ctxt,
@@ -11458,15 +11464,15 @@ virDomainEmulatorPinDel(virDomainDefPtr def)
 }
 
 static int
-virDomainLifecycleDefFormat(virBufferPtr buf,
-                            int type,
-                            const char *name,
-                            virLifecycleToStringFunc convFunc)
+virDomainEventActionDefFormat(virBufferPtr buf,
+                              int type,
+                              const char *name,
+                              virEventActionToStringFunc convFunc)
 {
     const char *typeStr = convFunc(type);
     if (!typeStr) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("unexpected lifecycle type %d"), type);
+                       _("unexpected %s action: %d"), name, type);
         return -1;
     }
 
@@ -13685,17 +13691,17 @@ virDomainDefFormatInternal(virDomainDefPtr def,
         virBufferAddLit(buf, "  </clock>\n");
     }
 
-    if (virDomainLifecycleDefFormat(buf, def->onPoweroff,
-                                    "on_poweroff",
-                                    virDomainLifecycleTypeToString) < 0)
+    if (virDomainEventActionDefFormat(buf, def->onPoweroff,
+                                      "on_poweroff",
+                                      virDomainLifecycleTypeToString) < 0)
         goto cleanup;
-    if (virDomainLifecycleDefFormat(buf, def->onReboot,
-                                    "on_reboot",
-                                    virDomainLifecycleTypeToString) < 0)
+    if (virDomainEventActionDefFormat(buf, def->onReboot,
+                                      "on_reboot",
+                                      virDomainLifecycleTypeToString) < 0)
         goto cleanup;
-    if (virDomainLifecycleDefFormat(buf, def->onCrash,
-                                    "on_crash",
-                                    virDomainLifecycleCrashTypeToString) < 0)
+    if (virDomainEventActionDefFormat(buf, def->onCrash,
+                                      "on_crash",
+                                      virDomainLifecycleCrashTypeToString) < 0)
         goto cleanup;
 
     if (def->pm.s3 || def->pm.s4) {
