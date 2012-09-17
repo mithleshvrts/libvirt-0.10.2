@@ -56,6 +56,7 @@ struct qemud_driver {
     virThreadPoolPtr workerPool;
 
     int privileged;
+    const char *uri;
 
     uid_t user;
     gid_t group;

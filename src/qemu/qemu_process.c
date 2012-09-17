@@ -2607,6 +2607,7 @@ static int qemuProcessHook(void *data)
     if (virSecurityManagerSetSocketLabel(h->driver->securityManager, h->vm->def) < 0)
         goto cleanup;
     if (virDomainLockProcessStart(h->driver->lockManager,
+                                  h->driver->uri,
                                   h->vm,
                                   /* QEMU is always pased initially */
                                   true,
@@ -2676,7 +2677,8 @@ qemuProcessStartCPUs(struct qemud_driver *driver, virDomainObjPtr vm,
     qemuDomainObjPrivatePtr priv = vm->privateData;
 
     VIR_DEBUG("Using lock state '%s'", NULLSTR(priv->lockState));
-    if (virDomainLockProcessResume(driver->lockManager, vm, priv->lockState) < 0) {
+    if (virDomainLockProcessResume(driver->lockManager, driver->uri,
+                                   vm, priv->lockState) < 0) {
         /* Don't free priv->lockState on error, because we need
          * to make sure we have state still present if the user
          * tries to resume again
