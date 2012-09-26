@@ -183,7 +183,8 @@ VIR_ENUM_IMPL(qemuCaps, QEMU_CAPS_LAST,
 
               "reboot-timeout", /* 110 */
               "dump-guest-core",
-              "disable-ksm", /* 112 */
+              "seamless-migration",
+              "disable-ksm",
               "virtio-net-pci.__com_redhat_macvtap_compat", /* RHEL-specific */
                /* RHEL-only for now; the name 'drive-reopen' is
                 * essential for XML compatibility, even though the
@@ -1157,6 +1158,8 @@ qemuCapsComputeCmdFlags(const char *help,
     }
     if (strstr(help, "-spice"))
         qemuCapsSet(caps, QEMU_CAPS_SPICE);
+    if (strstr(help, "seamless-migration="))
+        qemuCapsSet(caps, QEMU_CAPS_SEAMLESS_MIGRATION);
     if (strstr(help, "boot=on"))
         qemuCapsSet(caps, QEMU_CAPS_DRIVE_BOOT);
     if (strstr(help, "serial=s"))
