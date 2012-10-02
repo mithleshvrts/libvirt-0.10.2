@@ -2790,6 +2790,9 @@
       </optional>
       <group>
         <element name="source">
+          <optional>
+            <ref name="startupPolicy"/>
+          </optional>
           <choice>
             <group>
               <ref name="usbproduct"/>
