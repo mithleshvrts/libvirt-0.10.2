@@ -380,7 +380,7 @@ typedef int
                           qemuCapsPtr caps);
 
 /* Format:
- *      <arch> <model>
+ *      <arch> <model>  <description>
  * qemu-0.13 encloses some model names in []:
  *      <arch> [<model>]
  */
@@ -390,6 +390,7 @@ qemuCapsParseX86Models(const char *output,
 {
     const char *p = output;
     const char *next;
+    const char *end;
     int ret = -1;
 
     do {
@@ -417,8 +418,12 @@ qemuCapsParseX86Models(const char *output,
             goto cleanup;
         }
 
-        if (next)
-            len = next - p - 1;
+        end = next ? next - 1 : NULL;
+        if ((t = strchr(p, ' ')) && (!next || t < next))
+            end = t;
+
+        if (end)
+            len = end - p;
         else
             len = strlen(p);
 
