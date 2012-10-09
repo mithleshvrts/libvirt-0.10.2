@@ -2704,6 +2704,7 @@ virDomainHostdevSubsysUsbDefParseXML(const xmlNodePtr node,
     int got_product, got_vendor;
     xmlNodePtr cur;
     char *startupPolicy = NULL;
+    char *autoAddress;
 
     if ((startupPolicy = virXMLPropString(node, "startupPolicy"))) {
         def->startupPolicy =
@@ -2716,6 +2717,12 @@ virDomainHostdevSubsysUsbDefParseXML(const xmlNodePtr node,
             goto out;
         }
         VIR_FREE(startupPolicy);
+    }
+
+    if ((autoAddress = virXMLPropString(node, "autoAddress"))) {
+        if (STREQ(autoAddress, "yes"))
+            def->source.subsys.u.usb.autoAddress = true;
+        VIR_FREE(autoAddress);
     }
 
     /* Product can validly be 0, so we need some extra help to determine
@@ -12098,6 +12105,9 @@ virDomainHostdevSourceFormat(virBufferPtr buf,
         policy = virDomainStartupPolicyTypeToString(def->startupPolicy);
         virBufferAsprintf(buf, " startupPolicy='%s'", policy);
     }
+    if (def->source.subsys.u.usb.autoAddress &&
+        (flags & VIR_DOMAIN_XML_MIGRATABLE))
+        virBufferAddLit(buf, " autoAddress='yes'");
     virBufferAddLit(buf, ">\n");
 
     virBufferAdjustIndent(buf, 2);
