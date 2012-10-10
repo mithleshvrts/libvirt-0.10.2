@@ -7963,7 +7963,7 @@ qemuSetSchedulerParameters(virDomainPtr dom,
     return qemuSetSchedulerParametersFlags(dom,
                                            params,
                                            nparams,
-                                           VIR_DOMAIN_AFFECT_LIVE);
+                                           VIR_DOMAIN_AFFECT_CURRENT);
 }
 
 static int
