@@ -12108,6 +12108,11 @@ virDomainHostdevSourceFormat(virBufferPtr buf,
     if (def->source.subsys.u.usb.autoAddress &&
         (flags & VIR_DOMAIN_XML_MIGRATABLE))
         virBufferAddLit(buf, " autoAddress='yes'");
+
+    if (def->missing &&
+        !(flags & VIR_DOMAIN_XML_INACTIVE))
+        virBufferAddLit(buf, " missing='yes'");
+
     virBufferAddLit(buf, ">\n");
 
     virBufferAdjustIndent(buf, 2);
