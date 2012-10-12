@@ -609,6 +609,9 @@ int qemuMonitorGetEvents(qemuMonitorPtr mon,
 
 int qemuMonitorGetObjectTypes(qemuMonitorPtr mon,
                               char ***types);
+int qemuMonitorGetObjectProps(qemuMonitorPtr mon,
+                              const char *type,
+                              char ***props);
 
 
 /**
