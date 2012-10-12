@@ -1334,6 +1334,8 @@ static struct qemuCapsObjectTypeProps qemuCapsObjectProps[] = {
       ARRAY_CARDINALITY(qemuCapsObjectPropsVirtioNet) },
     { "pci-assign", qemuCapsObjectPropsPciAssign,
       ARRAY_CARDINALITY(qemuCapsObjectPropsPciAssign) },
+    { "kvm-pci-assign", qemuCapsObjectPropsPciAssign,
+      ARRAY_CARDINALITY(qemuCapsObjectPropsPciAssign) },
     { "scsi-disk", qemuCapsObjectPropsScsiDisk,
       ARRAY_CARDINALITY(qemuCapsObjectPropsScsiDisk) },
     { "ide-drive", qemuCapsObjectPropsIDEDrive,
