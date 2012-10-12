@@ -602,36 +602,22 @@ qemudStartup(int privileged) {
                         "%s/lib/libvirt/qemu/dump", LOCALSTATEDIR) == -1)
             goto out_of_memory;
     } else {
-        char *rundir;
-        char *cachedir;
-
-        cachedir = virGetUserCacheDirectory();
-        if (!cachedir)
+        char *userdir;
+        if (!(userdir = virGetUserDirectory()))
             goto error;
 
-        if (virAsprintf(&qemu_driver->logDir,
-                        "%s/qemu/log", cachedir) == -1) {
-            VIR_FREE(cachedir);
+        if (virAsprintf(&base, "%s/.libvirt", userdir) == -1) {
+            VIR_FREE(userdir);
             goto out_of_memory;
         }
-        if (virAsprintf(&qemu_driver->cacheDir, "%s/qemu/cache", cachedir) == -1) {
-            VIR_FREE(cachedir);
-            goto out_of_memory;
-        }
-        VIR_FREE(cachedir);
+        VIR_FREE(userdir);
 
-        rundir = virGetUserRuntimeDirectory();
-        if (!rundir)
-            goto error;
-        if (virAsprintf(&qemu_driver->stateDir, "%s/qemu/run", rundir) == -1) {
-            VIR_FREE(rundir);
+        if (virAsprintf(&qemu_driver->logDir, "%s/qemu/log", base) == -1)
             goto out_of_memory;
-        }
-        VIR_FREE(rundir);
-
-        base = virGetUserConfigDirectory();
-        if (!base)
-            goto error;
+        if (virAsprintf(&qemu_driver->stateDir, "%s/qemu/run", base) == -1)
+            goto out_of_memory;
+        if (virAsprintf(&qemu_driver->cacheDir, "%s/qemu/cache", base) == -1)
+            goto out_of_memory;
         if (virAsprintf(&qemu_driver->libDir, "%s/qemu/lib", base) == -1)
             goto out_of_memory;
         if (virAsprintf(&qemu_driver->saveDir, "%s/qemu/save", base) == -1)

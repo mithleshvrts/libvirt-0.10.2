@@ -145,9 +145,16 @@ storageDriverStartup(int privileged)
         if ((base = strdup (SYSCONFDIR "/libvirt")) == NULL)
             goto out_of_memory;
     } else {
-        base = virGetUserConfigDirectory();
-        if (!base)
+        char *userdir = virGetUserDirectory();
+
+        if (!userdir)
             goto error;
+
+        if (virAsprintf(&base, "%s/.libvirt", userdir) < 0) {
+            VIR_FREE(userdir);
+            goto out_of_memory;
+        }
+        VIR_FREE(userdir);
     }
 
     /* Configuration paths are either $USER_CONFIG_HOME/libvirt/storage/... (session) or

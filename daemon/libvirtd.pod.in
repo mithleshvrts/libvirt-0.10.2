@@ -112,12 +112,12 @@ The PID file to use, unless overridden by the B<-p>|B<--pid-file> option.
 
 =over
 
-=item F<$XDG_CONFIG_HOME/libvirtd.conf>
+=item F<$HOME/.libvirt/libvirtd.conf>
 
 The default configuration file used by libvirtd, unless overridden on the
 command line using the B<-f>|B<--config> option.
 
-=item F<$XDG_RUNTIME_DIR/libvirt/libvirt-sock>
+=item F<$HOME/.libvirt/libvirt-sock>
 
 The socket libvirtd will use.
 
@@ -133,13 +133,9 @@ The TLS B<Server> certificate libvirtd will use.
 
 The TLS B<Server> private key libvirtd will use.
 
-=item F<$XDG_RUNTIME_DIR/libvirt/libvirtd.pid>
+=item F<$HOME/.libvirt/libvirtd.pid>
 
 The PID file to use, unless overridden by the B<-p>|B<--pid-file> option.
-
-=item If $XDG_CONFIG_HOME is not set in your environment, libvirtd will use F<$HOME/.config>
-
-=item If $XDG_RUNTIME_DIR is not set in your environment, libvirtd will use F<$HOME/.cache>
 
 =back
 

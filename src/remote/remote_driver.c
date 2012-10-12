@@ -640,12 +640,12 @@ doRemoteOpen(virConnectPtr conn,
     case trans_unix:
         if (!sockname) {
             if (flags & VIR_DRV_OPEN_REMOTE_USER) {
-                char *userdir = virGetUserRuntimeDirectory();
+                char *userdir = virGetUserDirectory();
 
                 if (!userdir)
                     goto failed;
 
-                if (virAsprintf(&sockname, "%s/" LIBVIRTD_USER_UNIX_SOCKET, userdir) < 0) {
+                if (virAsprintf(&sockname, "%s" LIBVIRTD_USER_UNIX_SOCKET, userdir) < 0) {
                     VIR_FREE(userdir);
                     goto no_memory;
                 }

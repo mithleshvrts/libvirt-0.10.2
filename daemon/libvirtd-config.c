@@ -203,10 +203,10 @@ daemonConfigFilePath(bool privileged, char **configfile)
     } else {
         char *configdir = NULL;
 
-        if (!(configdir = virGetUserConfigDirectory()))
+        if (!(configdir = virGetUserDirectory()))
             goto error;
 
-        if (virAsprintf(configfile, "%s/libvirtd.conf", configdir) < 0) {
+        if (virAsprintf(configfile, "%s/.libvirt/libvirtd.conf", configdir) < 0) {
             VIR_FREE(configdir);
             goto no_memory;
         }

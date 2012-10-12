@@ -219,9 +219,15 @@ nwfilterDriverStartup(int privileged)
         if ((base = strdup (SYSCONFDIR "/libvirt")) == NULL)
             goto out_of_memory;
     } else {
-        base = virGetUserConfigDirectory();
-        if (!base)
+        char *userdir = virGetUserDirectory();
+        if (!userdir)
             goto error;
+
+        if (virAsprintf(&base, "%s/.libvirt", userdir) == -1) {
+            VIR_FREE(userdir);
+            goto out_of_memory;
+        }
+        VIR_FREE(userdir);
     }
 
     if (virAsprintf(&driverState->configDir,

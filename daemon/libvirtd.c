@@ -244,23 +244,14 @@ daemonPidFilePath(bool privileged,
             goto no_memory;
     } else {
         char *rundir = NULL;
-        mode_t old_umask;
 
-        if (!(rundir = virGetUserRuntimeDirectory()))
+        if (!(rundir = virGetUserDirectory()))
             goto error;
 
-        old_umask = umask(077);
-        if (virFileMakePath(rundir) < 0) {
-            umask(old_umask);
-            goto error;
-        }
-        umask(old_umask);
-
-        if (virAsprintf(pidfile, "%s/libvirtd.pid", rundir) < 0) {
+        if (virAsprintf(pidfile, "%s/.libvirt/libvirtd.pid", rundir) < 0) {
             VIR_FREE(rundir);
             goto no_memory;
         }
-
         VIR_FREE(rundir);
     }
 
@@ -291,24 +282,15 @@ daemonUnixSocketPaths(struct daemonConfig *config,
             if (!(*rosockfile = strdup(LOCALSTATEDIR "/run/libvirt/libvirt-sock-ro")))
                 goto no_memory;
         } else {
-            char *rundir = NULL;
-            mode_t old_umask;
+            char *rundir = virGetUserDirectory();
 
-            if (!(rundir = virGetUserRuntimeDirectory()))
+            if (!rundir)
                 goto error;
 
-            old_umask = umask(077);
-            if (virFileMakePath(rundir) < 0) {
-                umask(old_umask);
-                goto error;
-            }
-            umask(old_umask);
-
-            if (virAsprintf(sockfile, "%s/libvirt-sock", rundir) < 0) {
+            if (virAsprintf(sockfile, "@%s/.libvirt/libvirt-sock", rundir) < 0) {
                 VIR_FREE(rundir);
                 goto no_memory;
             }
-
             VIR_FREE(rundir);
         }
     }
@@ -648,20 +630,11 @@ daemonSetupLogging(struct daemonConfig *config,
                                 LOCALSTATEDIR) == -1)
                     goto no_memory;
             } else {
-                char *logdir = virGetUserCacheDirectory();
-                mode_t old_umask;
-
+                char *logdir = virGetUserDirectory();
                 if (!logdir)
                     goto error;
 
-                old_umask = umask(077);
-                if (virFileMakePath(logdir) < 0) {
-                    umask(old_umask);
-                    goto error;
-                }
-                umask(old_umask);
-
-                if (virAsprintf(&tmp, "%d:file:%s/libvirtd.log",
+                if (virAsprintf(&tmp, "%d:file:%s/.libvirt/libvirtd.log",
                                 virLogGetDefaultPriority(), logdir) == -1) {
                     VIR_FREE(logdir);
                     goto no_memory;
@@ -786,82 +759,6 @@ static int daemonStateInit(virNetServerPtr srv)
     return 0;
 }
 
-static int migrateProfile(void)
-{
-    char *old_base = NULL;
-    char *updated = NULL;
-    char *home = NULL;
-    char *xdg_dir = NULL;
-    char *config_dir = NULL;
-    const char *config_home;
-    int ret = -1;
-    mode_t old_umask;
-
-    VIR_DEBUG("Checking if user profile needs migrating");
-
-    if (!(home = virGetUserDirectory()))
-        goto cleanup;
-
-    if (virAsprintf(&old_base, "%s/.libvirt", home) < 0) {
-        goto cleanup;
-    }
-
-    /* if the new directory is there or the old one is not: do nothing */
-    if (!(config_dir = virGetUserConfigDirectory()))
-        goto cleanup;
-
-    if (!virFileIsDir(old_base) || virFileExists(config_dir)) {
-        VIR_DEBUG("No old profile in '%s' / "
-                  "new profile directory already present '%s'",
-                  old_base, config_dir);
-        ret = 0;
-        goto cleanup;
-    }
-
-    /* test if we already attempted to migrate first */
-    if (virAsprintf(&updated, "%s/DEPRECATED-DIRECTORY", old_base) < 0) {
-        goto cleanup;
-    }
-    if (virFileExists(updated)) {
-        goto cleanup;
-    }
-
-    config_home = getenv("XDG_CONFIG_HOME");
-    if (config_home && config_home[0] != '\0') {
-        xdg_dir = strdup(config_home);
-    } else {
-        if (virAsprintf(&xdg_dir, "%s/.config", home) < 0) {
-            goto cleanup;
-        }
-    }
-
-    old_umask = umask(077);
-    if (virFileMakePath(xdg_dir) < 0) {
-        umask(old_umask);
-        goto cleanup;
-    }
-    umask(old_umask);
-
-    if (rename(old_base, config_dir) < 0) {
-        int fd = creat(updated, 0600);
-        VIR_FORCE_CLOSE(fd);
-        VIR_ERROR(_("Unable to migrate %s to %s"), old_base, config_dir);
-        goto cleanup;
-    }
-
-    VIR_DEBUG("Profile migrated from %s to %s", old_base, config_dir);
-    ret = 0;
-
- cleanup:
-    VIR_FREE(home);
-    VIR_FREE(old_base);
-    VIR_FREE(xdg_dir);
-    VIR_FREE(config_dir);
-    VIR_FREE(updated);
-
-    return ret;
-}
-
 /* Print command-line usage. */
 static void
 daemonUsage(const char *argv0, bool privileged)
@@ -915,10 +812,10 @@ libvirt management daemon:\n"), argv0);
   Default paths:\n\
 \n\
     Configuration file (unless overridden by -f):\n\
-      $XDG_CONFIG_HOME/libvirt/libvirtd.conf\n\
+      $HOME/.libvirt/libvirtd.conf\n\
 \n\
     Sockets:\n\
-      $XDG_RUNTIME_DIR/libvirt/libvirt-sock (in UNIX abstract namespace)\n\
+      $HOME/.libvirt/libvirt-sock (in UNIX abstract namespace)\n \
 \n\
     TLS:\n\
       CA certificate:     $HOME/.pki/libvirt/cacert.pem\n\
@@ -926,7 +823,7 @@ libvirt management daemon:\n"), argv0);
       Server private key: $HOME/.pki/libvirt/serverkey.pem\n\
 \n\
     PID file:\n\
-      $XDG_RUNTIME_DIR/libvirt/libvirtd.pid\n\
+      $HOME/.libvirt/libvirtd.pid\n   \
 \n"));
     }
 }
@@ -1103,12 +1000,6 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    if (!privileged &&
-        migrateProfile() < 0) {
-        VIR_ERROR(_("Exiting due to failure to migrate profile"));
-        exit(EXIT_FAILURE);
-    }
-
     if (config->host_uuid &&
         virSetHostUUIDStr(config->host_uuid) < 0) {
         VIR_ERROR(_("invalid host UUID: %s"), config->host_uuid);
@@ -1158,22 +1049,21 @@ int main(int argc, char **argv) {
     if (privileged) {
         run_dir = strdup(LOCALSTATEDIR "/run/libvirt");
     } else {
-        run_dir = virGetUserRuntimeDirectory();
+        char *user_dir = virGetUserDirectory();
 
-        if (!run_dir) {
+        if (!user_dir) {
             VIR_ERROR(_("Can't determine user directory"));
             goto cleanup;
         }
+        ignore_value(virAsprintf(&run_dir, "%s/.libvirt/", user_dir));
+        VIR_FREE(user_dir);
     }
     if (!run_dir) {
         virReportOOMError();
         goto cleanup;
     }
 
-    if (privileged)
-        old_umask = umask(022);
-    else
-        old_umask = umask(077);
+    old_umask = umask(022);
     VIR_DEBUG("Ensuring run dir '%s' exists", run_dir);
     if (virFileMakePath(run_dir) < 0) {
         char ebuf[1024];

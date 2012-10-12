@@ -301,20 +301,18 @@ networkStartup(int privileged) {
         if ((base = strdup (SYSCONFDIR "/libvirt")) == NULL)
             goto out_of_memory;
     } else {
-        char *userdir = virGetUserCacheDirectory();
+        char *userdir = virGetUserDirectory();
 
         if (!userdir)
             goto error;
 
         if (virAsprintf(&driverState->logDir,
-                        "%s/qemu/log", userdir) == -1) {
+                        "%s/.libvirt/qemu/log", userdir) == -1) {
             VIR_FREE(userdir);
             goto out_of_memory;
         }
-        VIR_FREE(userdir);
 
-        userdir = virGetUserConfigDirectory();
-        if (virAsprintf(&base, "%s", userdir) == -1) {
+        if (virAsprintf(&base, "%s/.libvirt", userdir) == -1) {
             VIR_FREE(userdir);
             goto out_of_memory;
         }

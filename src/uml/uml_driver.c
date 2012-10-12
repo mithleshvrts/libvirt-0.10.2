@@ -461,9 +461,9 @@ umlStartup(int privileged)
                         "%s/run/libvirt/uml-guest", LOCALSTATEDIR) == -1)
             goto out_of_memory;
     } else {
-        base = virGetUserConfigDirectory();
-        if (!base)
-            goto error;
+        if (virAsprintf(&base, "%s/.libvirt", userdir) == -1) {
+            goto out_of_memory;
+        }
 
         if (virAsprintf(&uml_driver->logDir,
                         "%s/uml/log", base) == -1)
@@ -474,7 +474,7 @@ umlStartup(int privileged)
             goto out_of_memory;
     }
 
-    /* Configuration paths are either $XDG_CONFIG_HOME/libvirt/uml/... (session) or
+    /* Configuration paths are either $HOME/.libvirt/uml/... (session) or
      * /etc/libvirt/uml/... (system).
      */
     if (virAsprintf(&uml_driver->configDir, "%s/uml", base) == -1)
