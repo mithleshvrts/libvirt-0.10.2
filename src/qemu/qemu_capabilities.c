@@ -420,97 +420,6 @@ cleanup:
     return ret;
 }
 
-static int
-qemuCapsGetOldMachinesFromInfo(virCapsGuestDomainInfoPtr info,
-                               const char *emulator,
-                               time_t emulator_mtime,
-                               virCapsGuestMachinePtr **machines,
-                               size_t *nmachines)
-{
-    virCapsGuestMachinePtr *list;
-    int i;
-
-    if (!info->nmachines)
-        return 0;
-
-    if (!info->emulator || !STREQ(emulator, info->emulator))
-        return 0;
-
-    if (emulator_mtime != info->emulator_mtime) {
-        VIR_DEBUG("mtime on %s has changed, refreshing machine types",
-                  info->emulator);
-        return 0;
-    }
-
-    if (VIR_ALLOC_N(list, info->nmachines) < 0) {
-        virReportOOMError();
-        return 0;
-    }
-
-    for (i = 0; i < info->nmachines; i++) {
-        if (VIR_ALLOC(list[i]) < 0) {
-            goto no_memory;
-        }
-        if (info->machines[i]->name &&
-            !(list[i]->name = strdup(info->machines[i]->name))) {
-            goto no_memory;
-        }
-        if (info->machines[i]->canonical &&
-            !(list[i]->canonical = strdup(info->machines[i]->canonical))) {
-            goto no_memory;
-        }
-    }
-
-    *machines = list;
-    *nmachines = info->nmachines;
-
-    return 1;
-
-  no_memory:
-    virReportOOMError();
-    virCapabilitiesFreeMachines(list, info->nmachines);
-    return 0;
-}
-
-static int
-qemuCapsGetOldMachines(const char *ostype,
-                       const char *arch,
-                       int wordsize,
-                       const char *emulator,
-                       time_t emulator_mtime,
-                       virCapsPtr old_caps,
-                       virCapsGuestMachinePtr **machines,
-                       size_t *nmachines)
-{
-    int i;
-
-    for (i = 0; i < old_caps->nguests; i++) {
-        virCapsGuestPtr guest = old_caps->guests[i];
-        int j;
-
-        if (!STREQ(ostype, guest->ostype) ||
-            !STREQ(arch, guest->arch.name) ||
-            wordsize != guest->arch.wordsize)
-            continue;
-
-        for (j = 0; j < guest->arch.ndomains; j++) {
-            virCapsGuestDomainPtr dom = guest->arch.domains[j];
-
-            if (qemuCapsGetOldMachinesFromInfo(&dom->info,
-                                               emulator, emulator_mtime,
-                                               machines, nmachines))
-                return 1;
-        }
-
-        if (qemuCapsGetOldMachinesFromInfo(&guest->arch.defaultInfo,
-                                           emulator, emulator_mtime,
-                                           machines, nmachines))
-            return 1;
-    }
-
-    return 0;
-}
-
 
 typedef int
 (*qemuCapsParseCPUModels)(const char *output,
@@ -714,7 +623,7 @@ cleanup:
 
 static int
 qemuCapsInitGuest(virCapsPtr caps,
-                  virCapsPtr old_caps,
+                  qemuCapsCachePtr cache,
                   const char *hostmachine,
                   const struct qemu_arch_info *info,
                   int hvm)
@@ -725,11 +634,8 @@ qemuCapsInitGuest(virCapsPtr caps,
     int haskqemu = 0;
     char *kvmbin = NULL;
     char *binary = NULL;
-    time_t binary_mtime;
     virCapsGuestMachinePtr *machines = NULL;
     size_t nmachines = 0;
-    struct stat st;
-    size_t ncpus;
     qemuCapsPtr qemubinCaps = NULL;
     qemuCapsPtr kvmbinCaps = NULL;
     int ret = -1;
@@ -745,10 +651,12 @@ qemuCapsInitGuest(virCapsPtr caps,
     }
 
     /* Ignore binary if extracting version info fails */
-    if (binary &&
-        qemuCapsExtractVersionInfo(binary, info->arch,
-                                   false, NULL, &qemubinCaps) < 0)
-        VIR_FREE(binary);
+    if (binary) {
+        if (!(qemubinCaps = qemuCapsCacheLookup(cache, binary))) {
+            virResetLastError();
+            VIR_FREE(binary);
+        }
+    }
 
     /* qemu-kvm/kvm binaries can only be used if
      *  - host & guest arches match
@@ -768,9 +676,8 @@ qemuCapsInitGuest(virCapsPtr caps,
             if (!kvmbin)
                 continue;
 
-            if (qemuCapsExtractVersionInfo(kvmbin, info->arch,
-                                           false, NULL,
-                                           &kvmbinCaps) < 0) {
+            if (!(kvmbinCaps = qemuCapsCacheLookup(cache, kvmbin))) {
+                virResetLastError();
                 VIR_FREE(kvmbin);
                 continue;
             }
@@ -798,15 +705,6 @@ qemuCapsInitGuest(virCapsPtr caps,
         qemuCapsGet(qemubinCaps, QEMU_CAPS_KQEMU))
         haskqemu = 1;
 
-    if (stat(binary, &st) == 0) {
-        binary_mtime = st.st_mtime;
-    } else {
-        char ebuf[1024];
-        VIR_WARN("Failed to stat %s, most peculiar : %s",
-                 binary, virStrerror(errno, ebuf, sizeof(ebuf)));
-        binary_mtime = 0;
-    }
-
     if (info->machine) {
         virCapsGuestMachinePtr machine;
 
@@ -829,14 +727,7 @@ qemuCapsInitGuest(virCapsPtr caps,
 
         machines[0] = machine;
     } else {
-        int probe = 1;
-        if (old_caps && binary_mtime)
-            probe = !qemuCapsGetOldMachines(hvm ? "hvm" : "xen", info->arch,
-                                            info->wordsize, binary, binary_mtime,
-                                            old_caps, &machines, &nmachines);
-        if (probe &&
-            qemuCapsProbeMachineTypes(binary, qemubinCaps,
-                                      &machines, &nmachines) < 0)
+        if (qemuCapsGetMachineTypesCaps(qemubinCaps, &nmachines, &machines) < 0)
             goto error;
     }
 
@@ -855,11 +746,8 @@ qemuCapsInitGuest(virCapsPtr caps,
     machines = NULL;
     nmachines = 0;
 
-    guest->arch.defaultInfo.emulator_mtime = binary_mtime;
-
     if (caps->host.cpu &&
-        qemuCapsProbeCPUModels(binary, NULL, info->arch, &ncpus, NULL) == 0 &&
-        ncpus > 0 &&
+        qemuCapsGetCPUDefinitions(qemubinCaps, NULL) > 0 &&
         !virCapabilitiesAddGuestFeature(guest, "cpuselection", 1, 0))
         goto error;
 
@@ -888,28 +776,9 @@ qemuCapsInitGuest(virCapsPtr caps,
         if (haskvm) {
             virCapsGuestDomainPtr dom;
 
-            if (kvmbin) {
-                int probe = 1;
-
-                if (stat(kvmbin, &st) == 0) {
-                    binary_mtime = st.st_mtime;
-                } else {
-                    char ebuf[1024];
-                    VIR_WARN("Failed to stat %s, most peculiar : %s",
-                             binary, virStrerror(errno, ebuf, sizeof(ebuf)));
-                    binary_mtime = 0;
-                }
-
-                if (old_caps && binary_mtime)
-                    probe = !qemuCapsGetOldMachines("hvm", info->arch,
-                                                    info->wordsize, kvmbin,
-                                                    binary_mtime, old_caps,
-                                                    &machines, &nmachines);
-                if (probe &&
-                    qemuCapsProbeMachineTypes(kvmbin, kvmbinCaps,
-                                              &machines, &nmachines) < 0)
-                    goto error;
-            }
+            if (kvmbin &&
+                qemuCapsGetMachineTypesCaps(kvmbinCaps, &nmachines, &machines) < 0)
+                goto error;
 
             if ((dom = virCapabilitiesAddGuestDomain(guest,
                                                      "kvm",
@@ -923,7 +792,6 @@ qemuCapsInitGuest(virCapsPtr caps,
             machines = NULL;
             nmachines = 0;
 
-            dom->info.emulator_mtime = binary_mtime;
         }
     } else {
         if (virCapabilitiesAddGuestDomain(guest,
@@ -967,7 +835,7 @@ error:
 
 static int
 qemuCapsInitCPU(virCapsPtr caps,
-                 const char *arch)
+                const char *arch)
 {
     virCPUDefPtr cpu = NULL;
     union cpuData *data = NULL;
@@ -1013,7 +881,7 @@ static int qemuDefaultConsoleType(const char *ostype ATTRIBUTE_UNUSED)
 }
 
 
-virCapsPtr qemuCapsInit(virCapsPtr old_caps)
+virCapsPtr qemuCapsInit(qemuCapsCachePtr cache)
 {
     struct utsname utsname;
     virCapsPtr caps;
@@ -1039,14 +907,8 @@ virCapsPtr qemuCapsInit(virCapsPtr old_caps)
         VIR_WARN("Failed to query host NUMA topology, disabling NUMA capabilities");
     }
 
-    if (old_caps == NULL || old_caps->host.cpu == NULL) {
-        if (qemuCapsInitCPU(caps, utsname.machine) < 0)
-            VIR_WARN("Failed to get host CPU");
-    }
-    else {
-        caps->host.cpu = old_caps->host.cpu;
-        old_caps->host.cpu = NULL;
-    }
+    if (qemuCapsInitCPU(caps, utsname.machine) < 0)
+        VIR_WARN("Failed to get host CPU");
 
     /* Add the power management features of the host */
 
@@ -1058,7 +920,7 @@ virCapsPtr qemuCapsInit(virCapsPtr old_caps)
 
     /* First the pure HVM guests */
     for (i = 0 ; i < ARRAY_CARDINALITY(arch_info_hvm) ; i++)
-        if (qemuCapsInitGuest(caps, old_caps,
+        if (qemuCapsInitGuest(caps, cache,
                               utsname.machine,
                               &arch_info_hvm[i], 1) < 0)
             goto no_memory;
@@ -1073,7 +935,7 @@ virCapsPtr qemuCapsInit(virCapsPtr old_caps)
             if (STREQ(arch_info_xen[i].arch, utsname.machine) ||
                 (STREQ(utsname.machine, "x86_64") &&
                  STREQ(arch_info_xen[i].arch, "i686"))) {
-                if (qemuCapsInitGuest(caps, old_caps,
+                if (qemuCapsInitGuest(caps, cache,
                                       utsname.machine,
                                       &arch_info_xen[i], 0) < 0)
                     goto no_memory;
@@ -1889,6 +1751,11 @@ qemuCapsGet(qemuCapsPtr caps,
 }
 
 
+const char *qemuCapsGetBinary(qemuCapsPtr caps)
+{
+    return caps->binary;
+}
+
 const char *qemuCapsGetArch(qemuCapsPtr caps)
 {
     return caps->arch;
@@ -1910,7 +1777,8 @@ unsigned int qemuCapsGetKVMVersion(qemuCapsPtr caps)
 size_t qemuCapsGetCPUDefinitions(qemuCapsPtr caps,
                                  char ***names)
 {
-    *names = caps->cpuDefinitions;
+    if (names)
+        *names = caps->cpuDefinitions;
     return caps->ncpuDefinitions;
 }
 
@@ -1918,9 +1786,49 @@ size_t qemuCapsGetCPUDefinitions(qemuCapsPtr caps,
 size_t qemuCapsGetMachineTypes(qemuCapsPtr caps,
                                char ***names)
 {
-    *names = caps->machineTypes;
+    if (names)
+        *names = caps->machineTypes;
     return caps->nmachineTypes;
 }
+
+int qemuCapsGetMachineTypesCaps(qemuCapsPtr caps,
+                                size_t *nmachines,
+                                virCapsGuestMachinePtr **machines)
+{
+    size_t i;
+
+    *nmachines = 0;
+    *machines = NULL;
+    if (VIR_ALLOC_N(*machines, caps->nmachineTypes) < 0)
+        goto no_memory;
+    *nmachines = caps->nmachineTypes;
+
+    for (i = 0 ; i < caps->nmachineTypes ; i++) {
+        virCapsGuestMachinePtr mach;
+        if (VIR_ALLOC(mach) < 0)
+            goto no_memory;
+        if (caps->machineAliases[i]) {
+            if (!(mach->name = strdup(caps->machineAliases[i])))
+                goto no_memory;
+            if (!(mach->canonical = strdup(caps->machineTypes[i])))
+                goto no_memory;
+        } else {
+            if (!(mach->name = strdup(caps->machineTypes[i])))
+                goto no_memory;
+        }
+        (*machines)[i] = mach;
+    }
+
+    return 0;
+
+no_memory:
+    virCapabilitiesFreeMachines(*machines, *nmachines);
+    *nmachines = 0;
+    *machines = NULL;
+    return -1;
+}
+
+
 
 
 const char *qemuCapsGetCanonicalMachine(qemuCapsPtr caps,
