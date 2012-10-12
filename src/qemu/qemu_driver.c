@@ -1418,7 +1418,9 @@ static int qemudGetVersion(virConnectPtr conn, unsigned long *version) {
     int ret = -1;
 
     qemuDriverLock(driver);
-    if (qemuCapsExtractVersion(driver->caps, &driver->qemuVersion) < 0)
+    if (qemuCapsGetDefaultVersion(driver->caps,
+                                  driver->capsCache,
+                                  &driver->qemuVersion) < 0)
         goto cleanup;
 
     *version = driver->qemuVersion;
@@ -1460,6 +1462,7 @@ static virDomainPtr qemudDomainCreate(virConnectPtr conn, const char *xml,
     virDomainEventPtr event = NULL;
     virDomainEventPtr event2 = NULL;
     unsigned int start_flags = VIR_QEMU_PROCESS_START_COLD;
+    qemuCapsPtr caps = NULL;
 
     virCheckFlags(VIR_DOMAIN_START_PAUSED |
                   VIR_DOMAIN_START_AUTODESTROY, NULL);
@@ -1481,10 +1484,13 @@ static virDomainPtr qemudDomainCreate(virConnectPtr conn, const char *xml,
     if (virDomainObjIsDuplicate(&driver->domains, def, 1) < 0)
         goto cleanup;
 
+    if (!(caps = qemuCapsCacheLookup(driver->capsCache, def->emulator)))
+        goto cleanup;
+
     if (qemudCanonicalizeMachine(driver, def) < 0)
         goto cleanup;
 
-    if (qemuDomainAssignAddresses(def, NULL, NULL) < 0)
+    if (qemuDomainAssignAddresses(def, caps, NULL) < 0)
         goto cleanup;
 
     if (!(vm = virDomainAssignDef(driver->caps,
@@ -1538,6 +1544,7 @@ cleanup:
         if (event2)
             qemuDomainEventQueue(driver, event2);
     }
+    virObjectUnref(caps);
     qemuDriverUnlock(driver);
     return dom;
 }
@@ -5166,6 +5173,9 @@ static char *qemuDomainXMLToNative(virConnectPtr conn,
     if (!def)
         goto cleanup;
 
+    if (!(caps = qemuCapsCacheLookup(driver->capsCache, def->emulator)))
+        goto cleanup;
+
     /* Since we're just exporting args, we can't do bridge/network/direct
      * setups, since libvirt will normally create TAP/macvtap devices
      * directly. We convert those configs into generic 'ethernet'
@@ -5233,12 +5243,6 @@ static char *qemuDomainXMLToNative(virConnectPtr conn,
         VIR_FREE(net->virtPortProfile);
         net->info.bootIndex = bootIndex;
     }
-
-    if (qemuCapsExtractVersionInfo(def->emulator, def->os.arch,
-                                   false,
-                                   NULL,
-                                   &caps) < 0)
-        goto cleanup;
 
     monitor_json = qemuCapsGet(caps, QEMU_CAPS_MONITOR_JSON);
 
@@ -5533,6 +5537,7 @@ static virDomainPtr qemudDomainDefine(virConnectPtr conn, const char *xml) {
     virDomainObjPtr vm = NULL;
     virDomainPtr dom = NULL;
     virDomainEventPtr event = NULL;
+    qemuCapsPtr caps = NULL;
     int dupVM;
 
     qemuDriverLock(driver);
@@ -5547,10 +5552,13 @@ static virDomainPtr qemudDomainDefine(virConnectPtr conn, const char *xml) {
     if ((dupVM = virDomainObjIsDuplicate(&driver->domains, def, 0)) < 0)
         goto cleanup;
 
+    if (!(caps = qemuCapsCacheLookup(driver->capsCache, def->emulator)))
+        goto cleanup;
+
     if (qemudCanonicalizeMachine(driver, def) < 0)
         goto cleanup;
 
-    if (qemuDomainAssignAddresses(def, NULL, NULL) < 0)
+    if (qemuDomainAssignAddresses(def, caps, NULL) < 0)
         goto cleanup;
 
     /* We need to differentiate two cases:
@@ -5613,6 +5621,7 @@ cleanup:
         virDomainObjUnlock(vm);
     if (event)
         qemuDomainEventQueue(driver, event);
+    virObjectUnref(caps);
     qemuDriverUnlock(driver);
     return dom;
 }
@@ -6031,7 +6040,8 @@ qemuDomainUpdateDeviceLive(virDomainObjPtr vm,
 }
 
 static int
-qemuDomainAttachDeviceConfig(virDomainDefPtr vmdef,
+qemuDomainAttachDeviceConfig(qemuCapsPtr caps,
+                             virDomainDefPtr vmdef,
                              virDomainDeviceDefPtr dev)
 {
     virDomainDiskDefPtr disk;
@@ -6057,7 +6067,7 @@ qemuDomainAttachDeviceConfig(virDomainDefPtr vmdef,
         if (disk->bus != VIR_DOMAIN_DISK_BUS_VIRTIO)
             if (virDomainDefAddImplicitControllers(vmdef) < 0)
                 return -1;
-        if (qemuDomainAssignAddresses(vmdef, NULL, NULL) < 0)
+        if (qemuDomainAssignAddresses(vmdef, caps, NULL) < 0)
             return -1;
         break;
 
@@ -6076,7 +6086,7 @@ qemuDomainAttachDeviceConfig(virDomainDefPtr vmdef,
             return -1;
         }
         dev->data.net = NULL;
-        if (qemuDomainAssignAddresses(vmdef, NULL, NULL) < 0)
+        if (qemuDomainAssignAddresses(vmdef, caps, NULL) < 0)
             return -1;
         break;
 
@@ -6092,7 +6102,7 @@ qemuDomainAttachDeviceConfig(virDomainDefPtr vmdef,
             return -1;
         }
         dev->data.hostdev = NULL;
-        if (qemuDomainAssignAddresses(vmdef, NULL, NULL) < 0)
+        if (qemuDomainAssignAddresses(vmdef, caps, NULL) < 0)
             return -1;
         break;
 
@@ -6124,7 +6134,7 @@ qemuDomainAttachDeviceConfig(virDomainDefPtr vmdef,
             return -1;
         dev->data.controller = NULL;
 
-        if (qemuDomainAssignAddresses(vmdef, NULL, NULL) < 0)
+        if (qemuDomainAssignAddresses(vmdef, caps, NULL) < 0)
             return -1;
         break;
 
@@ -6217,7 +6227,8 @@ qemuDomainDetachDeviceConfig(virDomainDefPtr vmdef,
 }
 
 static int
-qemuDomainUpdateDeviceConfig(virDomainDefPtr vmdef,
+qemuDomainUpdateDeviceConfig(qemuCapsPtr caps,
+                             virDomainDefPtr vmdef,
                              virDomainDeviceDefPtr dev)
 {
     virDomainDiskDefPtr orig, disk;
@@ -6277,7 +6288,7 @@ qemuDomainUpdateDeviceConfig(virDomainDefPtr vmdef,
         vmdef->nets[pos] = net;
         dev->data.net = NULL;
 
-        if (qemuDomainAssignAddresses(vmdef, NULL, NULL) < 0)
+        if (qemuDomainAssignAddresses(vmdef, caps, NULL) < 0)
             return -1;
         break;
 
@@ -6308,6 +6319,8 @@ qemuDomainModifyDeviceFlags(virDomainPtr dom, const char *xml,
     bool force = (flags & VIR_DOMAIN_DEVICE_MODIFY_FORCE) != 0;
     int ret = -1;
     unsigned int affect;
+    qemuCapsPtr caps = NULL;
+    qemuDomainObjPrivatePtr priv;
 
     virCheckFlags(VIR_DOMAIN_AFFECT_LIVE |
                   VIR_DOMAIN_AFFECT_CONFIG |
@@ -6325,6 +6338,7 @@ qemuDomainModifyDeviceFlags(virDomainPtr dom, const char *xml,
                        _("no domain with matching uuid '%s'"), uuidstr);
         goto cleanup;
     }
+    priv = vm->privateData;
 
     if (qemuDomainObjBeginJobWithDriver(driver, vm, QEMU_JOB_MODIFY) < 0)
         goto cleanup;
@@ -6366,6 +6380,11 @@ qemuDomainModifyDeviceFlags(virDomainPtr dom, const char *xml,
             goto endjob;
     }
 
+    if (priv->caps)
+        caps = virObjectRef(priv->caps);
+    else if (!(caps = qemuCapsCacheLookup(driver->capsCache, vm->def->emulator)))
+        goto cleanup;
+
     if (flags & VIR_DOMAIN_AFFECT_CONFIG) {
         if (virDomainDefCompatibleDevice(vm->def, dev) < 0)
             goto endjob;
@@ -6376,13 +6395,13 @@ qemuDomainModifyDeviceFlags(virDomainPtr dom, const char *xml,
             goto endjob;
         switch (action) {
         case QEMU_DEVICE_ATTACH:
-            ret = qemuDomainAttachDeviceConfig(vmdef, dev);
+            ret = qemuDomainAttachDeviceConfig(caps, vmdef, dev);
             break;
         case QEMU_DEVICE_DETACH:
             ret = qemuDomainDetachDeviceConfig(vmdef, dev);
             break;
         case QEMU_DEVICE_UPDATE:
-            ret = qemuDomainUpdateDeviceConfig(vmdef, dev);
+            ret = qemuDomainUpdateDeviceConfig(caps, vmdef, dev);
             break;
         default:
             virReportError(VIR_ERR_INTERNAL_ERROR,
@@ -6442,6 +6461,7 @@ endjob:
         vm = NULL;
 
 cleanup:
+    virObjectUnref(caps);
     virDomainDefFree(vmdef);
     if (dev != dev_copy)
         virDomainDeviceDefFree(dev_copy);
@@ -12372,6 +12392,7 @@ static virDomainPtr qemuDomainAttach(virConnectPtr conn,
     bool monJSON = false;
     pid_t pid = pid_value;
     char *pidfile = NULL;
+    qemuCapsPtr caps = NULL;
 
     virCheckFlags(0, NULL);
 
@@ -12401,13 +12422,16 @@ static virDomainPtr qemuDomainAttach(virConnectPtr conn,
         goto cleanup;
     }
 
+    if (!(caps = qemuCapsCacheLookup(driver->capsCache, def->emulator)))
+        goto cleanup;
+
     if (virDomainObjIsDuplicate(&driver->domains, def, 1) < 0)
         goto cleanup;
 
     if (qemudCanonicalizeMachine(driver, def) < 0)
         goto cleanup;
 
-    if (qemuDomainAssignAddresses(def, NULL, NULL) < 0)
+    if (qemuDomainAssignAddresses(def, caps, NULL) < 0)
         goto cleanup;
 
     if (!(vm = virDomainAssignDef(driver->caps,
@@ -12439,6 +12463,7 @@ endjob:
 
 cleanup:
     virDomainDefFree(def);
+    virObjectUnref(caps);
     virDomainChrSourceDefFree(monConfig);
     if (vm)
         virDomainObjUnlock(vm);
