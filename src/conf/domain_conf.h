@@ -1892,6 +1892,8 @@ virDomainDeviceDefPtr virDomainDeviceDefCopy(virCapsPtr caps,
                                              virDomainDeviceDefPtr src);
 int virDomainDeviceAddressIsValid(virDomainDeviceInfoPtr info,
                                   int type);
+int virDomainDeviceInfoCopy(virDomainDeviceInfoPtr dst,
+                            virDomainDeviceInfoPtr src);
 void virDomainDeviceInfoClear(virDomainDeviceInfoPtr info);
 void virDomainDefClearPCIAddresses(virDomainDefPtr def);
 void virDomainDefClearDeviceAliases(virDomainDefPtr def);
