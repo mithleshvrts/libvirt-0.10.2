@@ -287,7 +287,7 @@ daemonUnixSocketPaths(struct daemonConfig *config,
             if (!rundir)
                 goto error;
 
-            if (virAsprintf(sockfile, "@%s/.libvirt/libvirt-sock", rundir) < 0) {
+            if (virAsprintf(sockfile, "%s/.libvirt/libvirt-sock", rundir) < 0) {
                 VIR_FREE(rundir);
                 goto no_memory;
             }
