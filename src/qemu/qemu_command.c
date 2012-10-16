@@ -4108,6 +4108,7 @@ qemuBuildCpuArgStr(const struct qemud_driver *driver,
         int hasSVM;
 
         if (!host ||
+            !host->model ||
             (ncpus = qemuCapsGetCPUDefinitions(caps, &cpus)) == 0) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                            _("CPU specification not supported by hypervisor"));
