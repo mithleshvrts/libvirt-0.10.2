@@ -2951,7 +2951,8 @@
     </element>
   </define>
   <!--
-      A set of optional features: PAE, APIC, ACPI, and HAP support
+      A set of optional features: PAE, APIC, ACPI,
+      HyperV Enlightenment and HAP support
     -->
   <define name="features">
     <optional>
@@ -2983,6 +2984,9 @@
             <element name="hap">
               <empty/>
             </element>
+          </optional>
+          <optional>
+            <ref name="hyperv"/>
           </optional>
           <optional>
             <element name="viridian">
@@ -3437,6 +3441,28 @@
         </choice>
       </interleave>
     </element>
+  </define>
+
+  <!-- Optional HyperV Enlightenment features -->
+  <define name="hyperv">
+    <element name="hyperv">
+      <interleave>
+        <optional>
+          <element name="relaxed">
+            <ref name="hypervtristate"/>
+          </element>
+        </optional>
+      </interleave>
+    </element>
+  </define>
+
+  <define name="hypervtristate">
+    <attribute name="state">
+      <choice>
+        <value>on</value>
+        <value>off</value>
+      </choice>
+    </attribute>
   </define>
 
   <!--
