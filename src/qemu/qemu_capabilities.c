@@ -184,12 +184,11 @@ VIR_ENUM_IMPL(qemuCaps, QEMU_CAPS_LAST,
               "reboot-timeout", /* 110 */
               "dump-guest-core",
               "seamless-migration",
+              "block-commit",
+
+              /* RHEL-specific below here */
               "disable-ksm",
-              "virtio-net-pci.__com_redhat_macvtap_compat", /* RHEL-specific */
-               /* RHEL-only for now; the name 'drive-reopen' is
-                * essential for XML compatibility, even though the
-                * upstream command was renamed
-                * 'block-job-complete'.  */
+              "virtio-net-pci.__com_redhat_macvtap_compat",
                "drive-mirror",
                "drive-reopen",
     );
@@ -1886,6 +1885,8 @@ qemuCapsProbeQMPCommands(qemuCapsPtr caps,
             qemuCapsSet(caps, QEMU_CAPS_BLOCKJOB_ASYNC);
         else if (STREQ(name, "dump-guest-memory"))
             qemuCapsSet(caps, QEMU_CAPS_DUMP_GUEST_MEMORY);
+        else if (STREQ(name, "block-commit"))
+            qemuCapsSet(caps, QEMU_CAPS_BLOCK_COMMIT);
         VIR_FREE(name);
     }
     VIR_FREE(commands);
