@@ -1136,6 +1136,7 @@ virStorageGenerateQcowPassphrase;
 
 
 # storage_file.h
+virStorageFileChainLookup;
 virStorageFileFormatTypeFromString;
 virStorageFileFormatTypeToString;
 virStorageFileFreeMetadata;
