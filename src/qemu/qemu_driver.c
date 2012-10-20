@@ -5823,7 +5823,7 @@ qemuDomainAttachDeviceDiskLive(virConnectPtr conn,
                            vm->def->name);
             goto end;
         }
-        if (qemuSetupDiskCgroup(driver, vm, cgroup, disk) < 0)
+        if (qemuSetupDiskCgroup(vm, cgroup, disk) < 0)
             goto end;
     }
     switch (disk->device)  {
@@ -5859,7 +5859,7 @@ qemuDomainAttachDeviceDiskLive(virConnectPtr conn,
     }
 
     if (ret != 0 && cgroup) {
-        if (qemuTeardownDiskCgroup(driver, vm, cgroup, disk) < 0)
+        if (qemuTeardownDiskCgroup(vm, cgroup, disk) < 0)
             VIR_WARN("Failed to teardown cgroup for disk path %s",
                      NULLSTR(disk->src));
     }
@@ -6055,7 +6055,7 @@ qemuDomainChangeDiskMediaLive(virDomainObjPtr vm,
                            vm->def->name);
             goto end;
         }
-        if (qemuSetupDiskCgroup(driver, vm, cgroup, disk) < 0)
+        if (qemuSetupDiskCgroup(vm, cgroup, disk) < 0)
             goto end;
     }
 
@@ -6074,7 +6074,7 @@ qemuDomainChangeDiskMediaLive(virDomainObjPtr vm,
     }
 
     if (ret != 0 && cgroup) {
-        if (qemuTeardownDiskCgroup(driver, vm, cgroup, disk) < 0)
+        if (qemuTeardownDiskCgroup(vm, cgroup, disk) < 0)
              VIR_WARN("Failed to teardown cgroup for disk path %s",
                       NULLSTR(disk->src));
     }
@@ -10803,14 +10803,14 @@ qemuDomainSnapshotCreateSingleDiskActive(struct qemud_driver *driver,
     if (virDomainLockDiskAttach(driver->lockManager, driver->uri,
                                 vm, disk) < 0)
         goto cleanup;
-    if (cgroup && qemuSetupDiskCgroup(driver, vm, cgroup, disk) < 0) {
+    if (cgroup && qemuSetupDiskCgroup(vm, cgroup, disk) < 0) {
         if (virDomainLockDiskDetach(driver->lockManager, vm, disk) < 0)
             VIR_WARN("Unable to release lock on %s", source);
         goto cleanup;
     }
     if (virSecurityManagerSetImageLabel(driver->securityManager, vm->def,
                                         disk) < 0) {
-        if (cgroup && qemuTeardownDiskCgroup(driver, vm, cgroup, disk) < 0)
+        if (cgroup && qemuTeardownDiskCgroup(vm, cgroup, disk) < 0)
             VIR_WARN("Failed to teardown cgroup for disk path %s", source);
         if (virDomainLockDiskDetach(driver->lockManager, vm, disk) < 0)
             VIR_WARN("Unable to release lock on %s", source);
@@ -10882,7 +10882,7 @@ qemuDomainSnapshotUndoSingleDiskActive(struct qemud_driver *driver,
     if (virSecurityManagerRestoreImageLabel(driver->securityManager,
                                             vm->def, disk) < 0)
         VIR_WARN("Unable to restore security label on %s", disk->src);
-    if (cgroup && qemuTeardownDiskCgroup(driver, vm, cgroup, disk) < 0)
+    if (cgroup && qemuTeardownDiskCgroup(vm, cgroup, disk) < 0)
         VIR_WARN("Failed to teardown cgroup for disk path %s", disk->src);
     if (virDomainLockDiskDetach(driver->lockManager, vm, disk) < 0)
         VIR_WARN("Unable to release lock on %s", disk->src);
