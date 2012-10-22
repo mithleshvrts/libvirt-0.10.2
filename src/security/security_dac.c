@@ -1022,6 +1022,14 @@ virSecurityDACSetImageFDLabel(virSecurityManagerPtr mgr ATTRIBUTE_UNUSED,
     return 0;
 }
 
+static int
+virSecurityDACSetTapFDLabel(virSecurityManagerPtr mgr ATTRIBUTE_UNUSED,
+                            virDomainDefPtr def ATTRIBUTE_UNUSED,
+                            int fd ATTRIBUTE_UNUSED)
+{
+    return 0;
+}
+
 static char *virSecurityDACGetMountOptions(virSecurityManagerPtr mgr ATTRIBUTE_UNUSED,
                                            virDomainDefPtr vm ATTRIBUTE_UNUSED) {
     return NULL;
@@ -1063,6 +1071,7 @@ virSecurityDriver virSecurityDriverDAC = {
     .domainRestoreSavedStateLabel       = virSecurityDACRestoreSavedStateLabel,
 
     .domainSetSecurityImageFDLabel      = virSecurityDACSetImageFDLabel,
+    .domainSetSecurityTapFDLabel        = virSecurityDACSetTapFDLabel,
 
     .domainGetSecurityMountOptions      = virSecurityDACGetMountOptions,
 };

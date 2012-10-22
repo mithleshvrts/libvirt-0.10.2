@@ -1066,6 +1066,7 @@ virSecurityManagerSetHostdevLabel;
 virSecurityManagerSetProcessLabel;
 virSecurityManagerSetSavedStateLabel;
 virSecurityManagerSetSocketLabel;
+virSecurityManagerSetTapFDLabel;
 virSecurityManagerStackAddNested;
 virSecurityManagerVerify;
 virSecurityManagerGetMountOptions;
