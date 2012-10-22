@@ -3430,6 +3430,22 @@ qemuMonitorJSONBlockCommit(qemuMonitorPtr mon, const char *device,
 
     if ((ret = qemuMonitorJSONCommand(mon, cmd, &reply)) < 0)
         goto cleanup;
+    if (qemuMonitorJSONHasError(reply, "CommandNotFound")) {
+        VIR_DEBUG("block-commit command not found, trying RHEL version");
+        virJSONValueFree(cmd);
+        virJSONValueFree(reply);
+        reply = NULL;
+        cmd = qemuMonitorJSONMakeCommand("__com.redhat_block-commit",
+                                         "s:device", device,
+                                         "U:speed", speed,
+                                         "s:top", top,
+                                         base ? "s:base" : NULL, base,
+                                         NULL);
+        if (!cmd)
+            goto cleanup;
+        if ((ret = qemuMonitorJSONCommand(mon, cmd, &reply)) < 0)
+            goto cleanup;
+    }
     ret = qemuMonitorJSONCheckError(cmd, reply);
 
 cleanup:

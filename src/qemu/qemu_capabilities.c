@@ -1885,7 +1885,8 @@ qemuCapsProbeQMPCommands(qemuCapsPtr caps,
             qemuCapsSet(caps, QEMU_CAPS_BLOCKJOB_ASYNC);
         else if (STREQ(name, "dump-guest-memory"))
             qemuCapsSet(caps, QEMU_CAPS_DUMP_GUEST_MEMORY);
-        else if (STREQ(name, "block-commit"))
+        else if (STREQ(name, "block-commit") ||
+                 STREQ(name, "__com.redhat_block-commit"))
             qemuCapsSet(caps, QEMU_CAPS_BLOCK_COMMIT);
         VIR_FREE(name);
     }
