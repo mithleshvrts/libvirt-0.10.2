@@ -5452,10 +5452,6 @@ qemuBuildCommandLine(virConnectPtr conn,
                     if (tapfd < 0)
                         goto error;
 
-                if (virSecurityManagerSetTapFDLabel(driver->securityManager,
-                                                    def, tapfd) < 0)
-                    goto error;
-
                     last_good_net = i;
                     virCommandTransferFD(cmd, tapfd);
 
@@ -5467,6 +5463,10 @@ qemuBuildCommandLine(virConnectPtr conn,
                 int tapfd = qemuPhysIfaceConnect(def, driver, net,
                                                  caps, vmop);
                 if (tapfd < 0)
+                    goto error;
+
+                if (virSecurityManagerSetTapFDLabel(driver->securityManager,
+                                                    def, tapfd) < 0)
                     goto error;
 
                 last_good_net = i;
