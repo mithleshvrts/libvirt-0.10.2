@@ -12531,6 +12531,88 @@ cleanup:
     return ret;
 }
 
+/* Called while holding the VM job lock, to implement a block job
+ * abort with pivot; this updates the VM definition as appropriate, on
+ * either success or failure (although there are some forms of
+ * catastrophic failure that will leave the VM unusable).  */
+static int
+qemuDomainBlockPivot(struct qemud_driver *driver, virDomainObjPtr vm,
+                     const char *device, virDomainDiskDefPtr disk)
+{
+    int ret = -1;
+    qemuDomainObjPrivatePtr priv = vm->privateData;
+    virDomainBlockJobInfo info;
+    bool reopen = qemuCapsGet(priv->caps, QEMU_CAPS_DRIVE_REOPEN);
+    const char *format = virStorageFileFormatTypeToString(disk->mirrorFormat);
+
+    /* Probe the status, if needed.  */
+    if (!disk->mirroring) {
+        qemuDomainObjEnterMonitorWithDriver(driver, vm);
+        ret = qemuMonitorBlockJob(priv->mon, device, NULL, 0, &info,
+                                  BLOCK_JOB_INFO, true);
+        qemuDomainObjExitMonitorWithDriver(driver, vm);
+        if (ret < 0)
+            goto cleanup;
+        if (!virDomainObjIsActive(vm)) {
+            virReportError(VIR_ERR_OPERATION_INVALID, "%s",
+                           _("domain is not running"));
+            goto cleanup;
+        }
+        if (ret == 1 && info.cur == info.end &&
+            info.type == VIR_DOMAIN_BLOCK_JOB_TYPE_COPY)
+            disk->mirroring = true;
+    }
+
+    if (!disk->mirroring) {
+        virReportError(VIR_ERR_BLOCK_COPY_ACTIVE,
+                       _("disk '%s' not ready for pivot yet"),
+                       disk->dst);
+        goto cleanup;
+    }
+
+    /* Attempt the pivot.  */
+    qemuDomainObjEnterMonitorWithDriver(driver, vm);
+    ret = qemuMonitorDrivePivot(priv->mon, device, disk->mirror, format,
+                                reopen);
+    qemuDomainObjExitMonitorWithDriver(driver, vm);
+
+    /* Note that RHEL 6.3 'drive-reopen' has the remote risk of a
+     * catastrophic failure, where the it fails but can't recover by
+     * reopening the source.  Not much we can do about it.  qemu 1.3
+     * 'block-job-complete' is safer by design.  */
+
+    if (ret == 0) {
+        /* XXX We want to revoke security labels and disk lease, as
+         * well as audit that revocation, before dropping the original
+         * source.  But it gets tricky if both source and mirror share
+         * common backing files (we want to only revoke the non-shared
+         * portion of the chain, and is made more difficult by the
+         * fact that we aren't tracking the full chain ourselves; so
+         * for now, we leak the access to the original.  */
+        VIR_FREE(disk->src);
+        disk->src = disk->mirror;
+        disk->format = disk->mirrorFormat;
+        disk->mirror = NULL;
+        disk->mirrorFormat = VIR_STORAGE_FILE_NONE;
+        disk->mirroring = false;
+        qemuDomainDetermineDiskChain(driver, disk, true);
+    } else {
+        /* On failure, qemu abandons the mirror, and attempts to
+         * revert back to the source disk.  Hopefully it was able to
+         * reopen things.  */
+        /* XXX should we be parsing the exact qemu error, or calling
+         * 'query-block', to see what state we really got left in
+         * before killing the mirroring job?  And just as on the
+         * success case, there's security labeling to worry about.  */
+        VIR_FREE(disk->mirror);
+        disk->mirrorFormat = VIR_STORAGE_FILE_NONE;
+        disk->mirroring = false;
+    }
+
+cleanup:
+    return ret;
+}
+
 static int
 qemuDomainBlockJobImpl(virDomainPtr dom, const char *path, const char *base,
                        unsigned long bandwidth, virDomainBlockJobInfoPtr info,
@@ -12591,6 +12673,14 @@ qemuDomainBlockJobImpl(virDomainPtr dom, const char *path, const char *base,
                        disk->dst);
         goto cleanup;
     }
+    if (mode == BLOCK_JOB_ABORT &&
+        (flags & VIR_DOMAIN_BLOCK_JOB_ABORT_PIVOT) &&
+        !(async && disk->mirror)) {
+        virReportError(VIR_ERR_OPERATION_INVALID,
+                       _("pivot of disk '%s' requires an active copy job"),
+                       disk->dst);
+        goto cleanup;
+    }
 
     if (qemuDomainObjBeginJobWithDriver(driver, vm, QEMU_JOB_MODIFY) < 0)
         goto cleanup;
@@ -12598,6 +12688,12 @@ qemuDomainBlockJobImpl(virDomainPtr dom, const char *path, const char *base,
     if (!virDomainObjIsActive(vm)) {
         virReportError(VIR_ERR_OPERATION_INVALID, "%s",
                        _("domain is not running"));
+        goto endjob;
+    }
+
+    if (disk->mirror && mode == BLOCK_JOB_ABORT &&
+        (flags & VIR_DOMAIN_BLOCK_JOB_ABORT_PIVOT)) {
+        ret = qemuDomainBlockPivot(driver, vm, device, disk);
         goto endjob;
     }
 
@@ -12616,6 +12712,15 @@ qemuDomainBlockJobImpl(virDomainPtr dom, const char *path, const char *base,
     if (mode == BLOCK_JOB_INFO && ret == 1 && disk->mirror &&
         info->cur == info->end && info->type == VIR_DOMAIN_BLOCK_JOB_TYPE_COPY)
         disk->mirroring = true;
+
+    /* A successful block job cancelation stops any mirroring.  */
+    if (mode == BLOCK_JOB_ABORT && disk->mirror) {
+        /* XXX We should also revoke security labels and disk lease on
+         * the mirror, and audit that fact, before dropping things.  */
+        VIR_FREE(disk->mirror);
+        disk->mirrorFormat = VIR_STORAGE_FILE_NONE;
+        disk->mirroring = false;
+    }
 
     /* With synchronous block cancel, we must synthesize an event, and
      * we silently ignore the ABORT_ASYNC flag.  With asynchronous
@@ -12681,7 +12786,8 @@ cleanup:
 static int
 qemuDomainBlockJobAbort(virDomainPtr dom, const char *path, unsigned int flags)
 {
-    virCheckFlags(VIR_DOMAIN_BLOCK_JOB_ABORT_ASYNC, -1);
+    virCheckFlags(VIR_DOMAIN_BLOCK_JOB_ABORT_ASYNC |
+                  VIR_DOMAIN_BLOCK_JOB_ABORT_PIVOT, -1);
     return qemuDomainBlockJobImpl(dom, path, NULL, 0, NULL, BLOCK_JOB_ABORT,
                                   flags);
 }
