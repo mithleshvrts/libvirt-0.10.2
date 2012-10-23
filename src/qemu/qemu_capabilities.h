@@ -155,16 +155,8 @@ enum qemuCapsFlags {
     /* RHEL-only below here */
     QEMU_CAPS_DISABLE_KSM           , /* Is '-redhat-disable-KSM' available? */
     QEMU_CAPS_VIRTIO_NET_MACVTAP_COMPAT, /* virtio-net-pci.__com_redhat_macvtap_compat */
-
-    /* RHEL-only: these two caps must exist in order to upgrade
-     * running domains from 6.3 to prerelease 6.4 libvirt.  They are
-     * unused in this particular build, but will be used once we
-     * rebase to upstream qemu and libvirt drive-mirror support.  */
-    QEMU_CAPS_DRIVE_MIRROR, /* 6.3 __com.redhat.drive-mirror, will hit
-                             * upstream qemu 1.2 as drive-mirror */
-    QEMU_CAPS_DRIVE_REOPEN, /* 6.3 __com.redhat.drive-reopen, will hit
-                             * upstream qemu 1.2 as
-                             * block-job-complete */
+    QEMU_CAPS_DRIVE_MIRROR,             /* drive-mirror monitor command */
+    QEMU_CAPS_DRIVE_REOPEN,             /* drive-reopen vs block-job-complete */
 
     QEMU_CAPS_LAST,                   /* this must always be the last item */
 };

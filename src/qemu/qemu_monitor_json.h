@@ -237,8 +237,25 @@ int qemuMonitorJSONDiskSnapshot(qemuMonitorPtr mon,
                                 const char *device,
                                 const char *file,
                                 const char *format,
-                                bool reuse);
-int qemuMonitorJSONTransaction(qemuMonitorPtr mon, virJSONValuePtr actions);
+                                bool reuse)
+    ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(3)
+    ATTRIBUTE_NONNULL(4) ATTRIBUTE_NONNULL(5);
+int qemuMonitorJSONTransaction(qemuMonitorPtr mon, virJSONValuePtr actions)
+    ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
+int qemuMonitorJSONDriveMirror(qemuMonitorPtr mon,
+                               const char *device,
+                               const char *file,
+                               const char *format,
+                               unsigned long long speed,
+                               bool reopen,
+                               unsigned int flags)
+    ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2) ATTRIBUTE_NONNULL(3);
+int qemuMonitorJSONDrivePivot(qemuMonitorPtr mon,
+                              const char *device,
+                              const char *file,
+                              const char *format,
+                              bool reopen)
+    ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2) ATTRIBUTE_NONNULL(3);
 
 int qemuMonitorJSONBlockCommit(qemuMonitorPtr mon,
                                const char *device,

@@ -2812,6 +2812,39 @@ qemuMonitorDiskSnapshot(qemuMonitorPtr mon, virJSONValuePtr actions,
     return ret;
 }
 
+/* Start a drive-mirror block job.  bandwidth is in MiB/sec.  */
+int
+qemuMonitorDriveMirror(qemuMonitorPtr mon,
+                       const char *device, const char *file,
+                       const char *format, unsigned long bandwidth,
+                       bool reopen, unsigned int flags)
+{
+    int ret = -1;
+    unsigned long long speed;
+
+    VIR_DEBUG("mon=%p, device=%s, file=%s, format=%s, bandwidth=%ld, "
+              "reopen=%d, flags=%x",
+              mon, device, file, NULLSTR(format), bandwidth, reopen, flags);
+
+    /* Convert bandwidth MiB to bytes */
+    speed = bandwidth;
+    if (speed > ULLONG_MAX / 1024 / 1024) {
+        virReportError(VIR_ERR_OVERFLOW,
+                       _("bandwidth must be less than %llu"),
+                       ULLONG_MAX / 1024 / 1024);
+        return -1;
+    }
+    speed <<= 20;
+
+    if (mon->json)
+        ret = qemuMonitorJSONDriveMirror(mon, device, file, format, speed,
+                                         reopen, flags);
+    else
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("drive-mirror requires JSON monitor"));
+    return ret;
+}
+
 /* Use the transaction QMP command to run atomic snapshot commands.  */
 int
 qemuMonitorTransaction(qemuMonitorPtr mon, virJSONValuePtr actions)
@@ -2828,7 +2861,7 @@ qemuMonitorTransaction(qemuMonitorPtr mon, virJSONValuePtr actions)
     return ret;
 }
 
-/* Start a block-commit block job.  bandwidth is in MB/sec.  */
+/* Start a block-commit block job.  bandwidth is in MiB/sec.  */
 int
 qemuMonitorBlockCommit(qemuMonitorPtr mon, const char *device,
                        const char *top, const char *base,
@@ -2855,6 +2888,25 @@ qemuMonitorBlockCommit(qemuMonitorPtr mon, const char *device,
     else
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                        _("block-commit requires JSON monitor"));
+    return ret;
+}
+
+/* Use the block-job-complete or drive-reopen monitor command to pivot
+ * a block copy job.  */
+int
+qemuMonitorDrivePivot(qemuMonitorPtr mon, const char *device,
+                      const char *file, const char *format, bool reopen)
+{
+    int ret = -1;
+
+    VIR_DEBUG("mon=%p, device=%s, file=%s, format=%s, reopen=%d",
+              mon, device, file, NULLSTR(format), reopen);
+
+    if (mon->json)
+        ret = qemuMonitorJSONDrivePivot(mon, device, file, format, reopen);
+    else
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("drive pivot requires JSON monitor"));
     return ret;
 }
 
@@ -2933,7 +2985,7 @@ int qemuMonitorScreendump(qemuMonitorPtr mon,
     return ret;
 }
 
-/* bandwidth is in MB/sec */
+/* bandwidth is in MiB/sec */
 int qemuMonitorBlockJob(qemuMonitorPtr mon,
                         const char *device,
                         const char *base,

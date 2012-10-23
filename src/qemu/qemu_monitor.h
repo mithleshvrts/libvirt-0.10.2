@@ -528,6 +528,20 @@ int qemuMonitorDiskSnapshot(qemuMonitorPtr mon,
                             bool reuse);
 int qemuMonitorTransaction(qemuMonitorPtr mon, virJSONValuePtr actions)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
+int qemuMonitorDriveMirror(qemuMonitorPtr mon,
+                           const char *device,
+                           const char *file,
+                           const char *format,
+                           unsigned long bandwidth,
+                           bool reopen,
+                           unsigned int flags)
+    ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2) ATTRIBUTE_NONNULL(3);
+int qemuMonitorDrivePivot(qemuMonitorPtr mon,
+                          const char *device,
+                          const char *file,
+                          const char *format,
+                          bool reopen)
+    ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2) ATTRIBUTE_NONNULL(3);
 
 int qemuMonitorBlockCommit(qemuMonitorPtr mon,
                            const char *device,

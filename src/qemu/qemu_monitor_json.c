@@ -3381,6 +3381,52 @@ cleanup:
     return ret;
 }
 
+/* speed is in bytes/sec */
+int
+qemuMonitorJSONDriveMirror(qemuMonitorPtr mon,
+                           const char *device, const char *file,
+                           const char *format, unsigned long long speed,
+                           bool reopen, unsigned int flags)
+{
+    int ret = -1;
+    virJSONValuePtr cmd;
+    virJSONValuePtr reply = NULL;
+    bool shallow = (flags & VIR_DOMAIN_BLOCK_REBASE_SHALLOW) != 0;
+    bool reuse = (flags & VIR_DOMAIN_BLOCK_REBASE_REUSE_EXT) != 0;
+
+    if (reopen)
+        cmd = qemuMonitorJSONMakeCommand("__com.redhat_drive-mirror",
+                                         "s:device", device,
+                                         "s:target", file,
+                                         "U:speed", speed,
+                                         "b:full", !shallow,
+                                         "s:mode",
+                                         reuse ? "existing" : "absolute-paths",
+                                         format ? "s:format" : NULL, format,
+                                         NULL);
+    else
+        cmd = qemuMonitorJSONMakeCommand("drive-mirror",
+                                         "s:device", device,
+                                         "s:target", file,
+                                         "U:speed", speed,
+                                         "s:sync", shallow ? "top" : "full",
+                                         "s:mode",
+                                         reuse ? "existing" : "absolute-paths",
+                                         format ? "s:format" : NULL, format,
+                                         NULL);
+    if (!cmd)
+        return -1;
+
+    if ((ret = qemuMonitorJSONCommand(mon, cmd, &reply)) < 0)
+        goto cleanup;
+    ret = qemuMonitorJSONCheckError(cmd, reply);
+
+cleanup:
+    virJSONValueFree(cmd);
+    virJSONValueFree(reply);
+    return ret;
+}
+
 int
 qemuMonitorJSONTransaction(qemuMonitorPtr mon, virJSONValuePtr actions)
 {
@@ -3446,6 +3492,37 @@ qemuMonitorJSONBlockCommit(qemuMonitorPtr mon, const char *device,
         if ((ret = qemuMonitorJSONCommand(mon, cmd, &reply)) < 0)
             goto cleanup;
     }
+    ret = qemuMonitorJSONCheckError(cmd, reply);
+
+cleanup:
+    virJSONValueFree(cmd);
+    virJSONValueFree(reply);
+    return ret;
+}
+
+int
+qemuMonitorJSONDrivePivot(qemuMonitorPtr mon, const char *device,
+                          const char *file, const char *format, bool reopen)
+{
+    int ret;
+    virJSONValuePtr cmd;
+    virJSONValuePtr reply = NULL;
+
+    if (reopen)
+        cmd = qemuMonitorJSONMakeCommand("__com.redhat_drive-reopen",
+                                         "s:device", device,
+                                         "s:new-image-file", file,
+                                         format ? "s:format" : NULL, format,
+                                         NULL);
+    else
+        cmd = qemuMonitorJSONMakeCommand("block-job-complete",
+                                         "s:device", device,
+                                         NULL);
+    if (!cmd)
+        return -1;
+
+    if ((ret = qemuMonitorJSONCommand(mon, cmd, &reply)) < 0)
+        goto cleanup;
     ret = qemuMonitorJSONCheckError(cmd, reply);
 
 cleanup:
