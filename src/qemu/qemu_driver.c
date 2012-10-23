@@ -12546,6 +12546,10 @@ qemuDomainBlockPivot(virConnectPtr conn,
     bool reopen = qemuCapsGet(priv->caps, QEMU_CAPS_DRIVE_REOPEN);
     const char *format = virStorageFileFormatTypeToString(disk->mirrorFormat);
     bool resume = false;
+    virCgroupPtr cgroup = NULL;
+    char *oldsrc = NULL;
+    int oldformat;
+    virStorageFileMetadataPtr oldchain = NULL;
 
     /* Probe the status, if needed.  */
     if (!disk->mirroring) {
@@ -12595,6 +12599,44 @@ qemuDomainBlockPivot(virConnectPtr conn,
         }
     }
 
+    /* We previously labeled only the top-level image; but if the
+     * image includes a relative backing file, the pivot may result in
+     * qemu needing to open the entire backing chain, so we need to
+     * label the entire chain.  This action is safe even if the
+     * backing chain has already been labeled; but only necessary when
+     * we know for sure that there is a backing chain.  */
+    if (disk->mirrorFormat && disk->mirrorFormat != VIR_STORAGE_FILE_RAW &&
+        qemuCgroupControllerActive(driver, VIR_CGROUP_CONTROLLER_DEVICES) &&
+        virCgroupForDomain(driver->cgroup, vm->def->name, &cgroup, 0) < 0) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("Unable to find cgroup for %s"),
+                       vm->def->name);
+        goto cleanup;
+    }
+    oldsrc = disk->src;
+    oldformat = disk->format;
+    oldchain = disk->backingChain;
+    disk->src = disk->mirror;
+    disk->format = disk->mirrorFormat;
+    disk->backingChain = NULL;
+    if (qemuDomainDetermineDiskChain(driver, disk, false) < 0) {
+        disk->src = oldsrc;
+        disk->format = oldformat;
+        disk->backingChain = oldchain;
+        goto cleanup;
+    }
+    if (disk->mirrorFormat && disk->mirrorFormat != VIR_STORAGE_FILE_RAW &&
+        (virDomainLockDiskAttach(driver->lockManager, driver->uri,
+                                 vm, disk) < 0 ||
+         (cgroup && qemuSetupDiskCgroup(vm, cgroup, disk) < 0) ||
+         virSecurityManagerSetImageLabel(driver->securityManager, vm->def,
+                                         disk) < 0)) {
+        disk->src = oldsrc;
+        disk->format = oldformat;
+        disk->backingChain = oldchain;
+        goto cleanup;
+    }
+
     /* Attempt the pivot.  */
     qemuDomainObjEnterMonitorWithDriver(driver, vm);
     ret = qemuMonitorDrivePivot(priv->mon, device, disk->mirror, format,
@@ -12614,13 +12656,9 @@ qemuDomainBlockPivot(virConnectPtr conn,
          * portion of the chain, and is made more difficult by the
          * fact that we aren't tracking the full chain ourselves; so
          * for now, we leak the access to the original.  */
-        VIR_FREE(disk->src);
-        disk->src = disk->mirror;
-        disk->format = disk->mirrorFormat;
+        VIR_FREE(oldsrc);
+        virStorageFileFreeMetadata(oldchain);
         disk->mirror = NULL;
-        disk->mirrorFormat = VIR_STORAGE_FILE_NONE;
-        disk->mirroring = false;
-        qemuDomainDetermineDiskChain(driver, disk, true);
     } else {
         /* On failure, qemu abandons the mirror, and attempts to
          * revert back to the source disk.  Hopefully it was able to
@@ -12629,12 +12667,18 @@ qemuDomainBlockPivot(virConnectPtr conn,
          * 'query-block', to see what state we really got left in
          * before killing the mirroring job?  And just as on the
          * success case, there's security labeling to worry about.  */
+        disk->src = oldsrc;
+        disk->format = oldformat;
+        virStorageFileFreeMetadata(disk->backingChain);
+        disk->backingChain = oldchain;
         VIR_FREE(disk->mirror);
-        disk->mirrorFormat = VIR_STORAGE_FILE_NONE;
-        disk->mirroring = false;
     }
+    disk->mirrorFormat = VIR_STORAGE_FILE_NONE;
+    disk->mirroring = false;
 
 cleanup:
+    if (cgroup)
+        virCgroupFree(&cgroup);
     if (resume && virDomainObjIsActive(vm) &&
         qemuProcessStartCPUs(driver, vm, conn,
                              VIR_DOMAIN_RUNNING_UNPAUSED,
