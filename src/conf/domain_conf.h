@@ -2009,6 +2009,7 @@ virDomainDiskDefPtr
 virDomainDiskRemove(virDomainDefPtr def, size_t i);
 virDomainDiskDefPtr
 virDomainDiskRemoveByName(virDomainDefPtr def, const char *name);
+bool virDomainHasDiskMirror(virDomainObjPtr vm);
 
 int virDomainNetIndexByMac(virDomainDefPtr def, const virMacAddrPtr mac);
 int virDomainNetInsert(virDomainDefPtr def, virDomainNetDefPtr net);
