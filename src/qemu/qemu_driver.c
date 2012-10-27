@@ -6165,14 +6165,6 @@ qemuDomainAttachDeviceConfig(qemuCapsPtr caps,
 
     case VIR_DOMAIN_DEVICE_NET:
         net = dev->data.net;
-        if (virDomainNetIndexByMac(vmdef, &net->mac) >= 0) {
-            char macbuf[VIR_MAC_STRING_BUFLEN];
-
-            virMacAddrFormat(&net->mac, macbuf);
-            virReportError(VIR_ERR_INVALID_ARG,
-                           _("mac %s already exists"), macbuf);
-            return -1;
-        }
         if (virDomainNetInsert(vmdef, net)) {
             virReportOOMError();
             return -1;
@@ -6244,11 +6236,12 @@ qemuDomainDetachDeviceConfig(virDomainDefPtr vmdef,
                              virDomainDeviceDefPtr dev)
 {
     virDomainDiskDefPtr disk, det_disk;
-    virDomainNetDefPtr net, det_net;
+    virDomainNetDefPtr net;
     virDomainHostdevDefPtr hostdev, det_hostdev;
     virDomainLeaseDefPtr lease, det_lease;
     virDomainControllerDefPtr cont, det_cont;
     int idx;
+    char mac[VIR_MAC_STRING_BUFLEN];
 
     switch (dev->type) {
     case VIR_DOMAIN_DEVICE_DISK:
@@ -6263,15 +6256,19 @@ qemuDomainDetachDeviceConfig(virDomainDefPtr vmdef,
 
     case VIR_DOMAIN_DEVICE_NET:
         net = dev->data.net;
-        if (!(det_net = virDomainNetRemoveByMac(vmdef, &net->mac))) {
-            char macbuf[VIR_MAC_STRING_BUFLEN];
-
-            virMacAddrFormat(&net->mac, macbuf);
-            virReportError(VIR_ERR_INVALID_ARG,
-                           _("no nic of mac %s"), macbuf);
+        idx = virDomainNetFindIdx(vmdef, net);
+        if (idx == -2) {
+            virReportError(VIR_ERR_OPERATION_FAILED,
+                           _("multiple devices matching mac address %s found"),
+                           virMacAddrFormat(&net->mac, mac));
+            return -1;
+        } else if (idx < 0) {
+            virReportError(VIR_ERR_OPERATION_FAILED, "%s",
+                           _("no matching network device was found"));
             return -1;
         }
-        virDomainNetDefFree(det_net);
+        /* this is guaranteed to succeed */
+        virDomainNetDefFree(virDomainNetRemove(vmdef, idx));
         break;
 
     case VIR_DOMAIN_DEVICE_HOSTDEV: {
@@ -6326,6 +6323,8 @@ qemuDomainUpdateDeviceConfig(qemuCapsPtr caps,
     virDomainDiskDefPtr orig, disk;
     virDomainNetDefPtr net;
     int pos;
+    char mac[VIR_MAC_STRING_BUFLEN];
+
 
     switch (dev->type) {
     case VIR_DOMAIN_DEVICE_DISK:
@@ -6363,12 +6362,18 @@ qemuDomainUpdateDeviceConfig(qemuCapsPtr caps,
 
     case VIR_DOMAIN_DEVICE_NET:
         net = dev->data.net;
-        if ((pos = virDomainNetIndexByMac(vmdef, &net->mac)) < 0) {
-            char macbuf[VIR_MAC_STRING_BUFLEN];
-
-            virMacAddrFormat(&net->mac, macbuf);
-            virReportError(VIR_ERR_INVALID_ARG,
-                           _("mac %s doesn't exist"), macbuf);
+        pos = virDomainNetFindIdx(vmdef, net);
+        if (pos == -2) {
+            virMacAddrFormat(&net->mac, mac);
+            virReportError(VIR_ERR_OPERATION_FAILED,
+                           _("couldn't find matching device "
+                             "with mac address %s"), mac);
+            return -1;
+        } else if (pos < 0) {
+            virMacAddrFormat(&net->mac, mac);
+            virReportError(VIR_ERR_OPERATION_FAILED,
+                           _("couldn't find matching device "
+                             "with mac address %s"), mac);
             return -1;
         }
 
