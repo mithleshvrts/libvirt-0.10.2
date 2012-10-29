@@ -12555,7 +12555,6 @@ qemuDomainBlockPivot(virConnectPtr conn,
     int ret = -1;
     qemuDomainObjPrivatePtr priv = vm->privateData;
     virDomainBlockJobInfo info;
-    bool reopen = qemuCapsGet(priv->caps, QEMU_CAPS_DRIVE_REOPEN);
     const char *format = virStorageFileFormatTypeToString(disk->mirrorFormat);
     bool resume = false;
     virCgroupPtr cgroup = NULL;
@@ -12651,8 +12650,7 @@ qemuDomainBlockPivot(virConnectPtr conn,
 
     /* Attempt the pivot.  */
     qemuDomainObjEnterMonitorWithDriver(driver, vm);
-    ret = qemuMonitorDrivePivot(priv->mon, device, disk->mirror, format,
-                                reopen);
+    ret = qemuMonitorDrivePivot(priv->mon, device, disk->mirror, format);
     qemuDomainObjExitMonitorWithDriver(driver, vm);
 
     /* Note that RHEL 6.3 'drive-reopen' has the remote risk of a
@@ -12911,7 +12909,6 @@ qemuDomainBlockCopy(virDomainPtr dom, const char *path,
     virDomainDiskDefPtr disk;
     int ret = -1;
     int idx;
-    bool reopen;
     struct stat st;
     bool need_unlink = false;
     char *mirror = NULL;
@@ -12950,7 +12947,6 @@ qemuDomainBlockCopy(virDomainPtr dom, const char *path,
         goto cleanup;
     }
 
-    reopen = qemuCapsGet(priv->caps, QEMU_CAPS_DRIVE_REOPEN);
     if (!(qemuCapsGet(priv->caps, QEMU_CAPS_DRIVE_MIRROR) &&
           qemuCapsGet(priv->caps, QEMU_CAPS_BLOCKJOB_ASYNC))) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
@@ -13049,7 +13045,7 @@ qemuDomainBlockCopy(virDomainPtr dom, const char *path,
     /* Actually start the mirroring */
     qemuDomainObjEnterMonitor(driver, vm);
     ret = qemuMonitorDriveMirror(priv->mon, device, dest, format, bandwidth,
-                                 reopen, flags);
+                                 flags);
     virDomainAuditDisk(vm, NULL, dest, "mirror", ret >= 0);
     qemuDomainObjExitMonitor(driver, vm);
     if (ret < 0) {

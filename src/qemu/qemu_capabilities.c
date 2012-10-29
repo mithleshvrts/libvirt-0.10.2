@@ -1891,8 +1891,6 @@ qemuCapsProbeQMPCommands(qemuCapsPtr caps,
         else if (STREQ(name, "drive-mirror") ||
                  STREQ(name, "__com.redhat_drive-mirror"))
             qemuCapsSet(caps, QEMU_CAPS_DRIVE_MIRROR);
-        else if (STREQ(name, "__com.redhat_drive-reopen"))
-            qemuCapsSet(caps, QEMU_CAPS_DRIVE_REOPEN);
         VIR_FREE(name);
     }
     VIR_FREE(commands);

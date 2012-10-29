@@ -2817,14 +2817,14 @@ int
 qemuMonitorDriveMirror(qemuMonitorPtr mon,
                        const char *device, const char *file,
                        const char *format, unsigned long bandwidth,
-                       bool reopen, unsigned int flags)
+                       unsigned int flags)
 {
     int ret = -1;
     unsigned long long speed;
 
     VIR_DEBUG("mon=%p, device=%s, file=%s, format=%s, bandwidth=%ld, "
-              "reopen=%d, flags=%x",
-              mon, device, file, NULLSTR(format), bandwidth, reopen, flags);
+              "flags=%x",
+              mon, device, file, NULLSTR(format), bandwidth, flags);
 
     /* Convert bandwidth MiB to bytes */
     speed = bandwidth;
@@ -2838,7 +2838,7 @@ qemuMonitorDriveMirror(qemuMonitorPtr mon,
 
     if (mon->json)
         ret = qemuMonitorJSONDriveMirror(mon, device, file, format, speed,
-                                         reopen, flags);
+                                         flags);
     else
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                        _("drive-mirror requires JSON monitor"));
@@ -2895,15 +2895,15 @@ qemuMonitorBlockCommit(qemuMonitorPtr mon, const char *device,
  * a block copy job.  */
 int
 qemuMonitorDrivePivot(qemuMonitorPtr mon, const char *device,
-                      const char *file, const char *format, bool reopen)
+                      const char *file, const char *format)
 {
     int ret = -1;
 
-    VIR_DEBUG("mon=%p, device=%s, file=%s, format=%s, reopen=%d",
-              mon, device, file, NULLSTR(format), reopen);
+    VIR_DEBUG("mon=%p, device=%s, file=%s, format=%s",
+              mon, device, file, NULLSTR(format));
 
     if (mon->json)
-        ret = qemuMonitorJSONDrivePivot(mon, device, file, format, reopen);
+        ret = qemuMonitorJSONDrivePivot(mon, device, file, format);
     else
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                        _("drive pivot requires JSON monitor"));

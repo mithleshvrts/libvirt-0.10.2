@@ -3399,7 +3399,7 @@ int
 qemuMonitorJSONDriveMirror(qemuMonitorPtr mon,
                            const char *device, const char *file,
                            const char *format, unsigned long long speed,
-                           bool reopen, unsigned int flags)
+                           unsigned int flags)
 {
     int ret = -1;
     virJSONValuePtr cmd;
@@ -3407,7 +3407,26 @@ qemuMonitorJSONDriveMirror(qemuMonitorPtr mon,
     bool shallow = (flags & VIR_DOMAIN_BLOCK_REBASE_SHALLOW) != 0;
     bool reuse = (flags & VIR_DOMAIN_BLOCK_REBASE_REUSE_EXT) != 0;
 
-    if (reopen)
+    cmd = qemuMonitorJSONMakeCommand("drive-mirror",
+                                     "s:device", device,
+                                     "s:target", file,
+                                     "U:speed", speed,
+                                     "s:sync", shallow ? "top" : "full",
+                                     "s:mode",
+                                     reuse ? "existing" : "absolute-paths",
+                                     format ? "s:format" : NULL, format,
+                                     NULL);
+    if (!cmd)
+        return -1;
+
+    if ((ret = qemuMonitorJSONCommand(mon, cmd, &reply)) < 0)
+        goto cleanup;
+    if (qemuMonitorJSONHasError(reply, "CommandNotFound")) {
+        VIR_DEBUG("block-job-complete command not found, trying RHEL version");
+        virJSONValueFree(cmd);
+        virJSONValueFree(reply);
+        reply = NULL;
+        ret = -1;
         cmd = qemuMonitorJSONMakeCommand("__com.redhat_drive-mirror",
                                          "s:device", device,
                                          "s:target", file,
@@ -3417,21 +3436,11 @@ qemuMonitorJSONDriveMirror(qemuMonitorPtr mon,
                                          reuse ? "existing" : "absolute-paths",
                                          format ? "s:format" : NULL, format,
                                          NULL);
-    else
-        cmd = qemuMonitorJSONMakeCommand("drive-mirror",
-                                         "s:device", device,
-                                         "s:target", file,
-                                         "U:speed", speed,
-                                         "s:sync", shallow ? "top" : "full",
-                                         "s:mode",
-                                         reuse ? "existing" : "absolute-paths",
-                                         format ? "s:format" : NULL, format,
-                                         NULL);
-    if (!cmd)
-        return -1;
-
-    if ((ret = qemuMonitorJSONCommand(mon, cmd, &reply)) < 0)
-        goto cleanup;
+        if (!cmd)
+            goto cleanup;
+        if ((ret = qemuMonitorJSONCommand(mon, cmd, &reply)) < 0)
+            goto cleanup;
+    }
     ret = qemuMonitorJSONCheckError(cmd, reply);
 
 cleanup:
@@ -3494,6 +3503,7 @@ qemuMonitorJSONBlockCommit(qemuMonitorPtr mon, const char *device,
         virJSONValueFree(cmd);
         virJSONValueFree(reply);
         reply = NULL;
+        ret = -1;
         cmd = qemuMonitorJSONMakeCommand("__com.redhat_block-commit",
                                          "s:device", device,
                                          "U:speed", speed,
@@ -3515,27 +3525,36 @@ cleanup:
 
 int
 qemuMonitorJSONDrivePivot(qemuMonitorPtr mon, const char *device,
-                          const char *file, const char *format, bool reopen)
+                          const char *file, const char *format)
 {
     int ret;
     virJSONValuePtr cmd;
     virJSONValuePtr reply = NULL;
 
-    if (reopen)
-        cmd = qemuMonitorJSONMakeCommand("__com.redhat_drive-reopen",
-                                         "s:device", device,
-                                         "s:new-image-file", file,
-                                         format ? "s:format" : NULL, format,
-                                         NULL);
-    else
-        cmd = qemuMonitorJSONMakeCommand("block-job-complete",
-                                         "s:device", device,
-                                         NULL);
+    cmd = qemuMonitorJSONMakeCommand("block-job-complete",
+                                     "s:device", device,
+                                     NULL);
     if (!cmd)
         return -1;
 
     if ((ret = qemuMonitorJSONCommand(mon, cmd, &reply)) < 0)
         goto cleanup;
+    if (qemuMonitorJSONHasError(reply, "CommandNotFound")) {
+        VIR_DEBUG("block-job-complete command not found, trying RHEL version");
+        virJSONValueFree(cmd);
+        virJSONValueFree(reply);
+        reply = NULL;
+        ret = -1;
+        cmd = qemuMonitorJSONMakeCommand("__com.redhat_drive-reopen",
+                                         "s:device", device,
+                                         "s:new-image-file", file,
+                                         format ? "s:format" : NULL, format,
+                                         NULL);
+        if (!cmd)
+            goto cleanup;
+        if ((ret = qemuMonitorJSONCommand(mon, cmd, &reply)) < 0)
+            goto cleanup;
+    }
     ret = qemuMonitorJSONCheckError(cmd, reply);
 
 cleanup:

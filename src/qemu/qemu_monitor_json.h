@@ -247,14 +247,12 @@ int qemuMonitorJSONDriveMirror(qemuMonitorPtr mon,
                                const char *file,
                                const char *format,
                                unsigned long long speed,
-                               bool reopen,
                                unsigned int flags)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2) ATTRIBUTE_NONNULL(3);
 int qemuMonitorJSONDrivePivot(qemuMonitorPtr mon,
                               const char *device,
                               const char *file,
-                              const char *format,
-                              bool reopen)
+                              const char *format)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2) ATTRIBUTE_NONNULL(3);
 
 int qemuMonitorJSONBlockCommit(qemuMonitorPtr mon,
