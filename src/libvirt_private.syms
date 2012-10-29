@@ -1785,6 +1785,7 @@ virURIParse;
 # xml.h
 virXMLChildElementCount;
 virXMLParseHelper;
+virXMLPickShellSafeComment;
 virXMLPropString;
 virXMLSaveFile;
 virXPathBoolean;

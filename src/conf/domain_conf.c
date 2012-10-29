@@ -14297,6 +14297,7 @@ int virDomainSaveXML(const char *configDir,
                      virDomainDefPtr def,
                      const char *xml)
 {
+    char uuidstr[VIR_UUID_STRING_BUFLEN];
     char *configFile = NULL;
     int ret = -1;
 
@@ -14310,7 +14311,10 @@ int virDomainSaveXML(const char *configDir,
         goto cleanup;
     }
 
-    ret = virXMLSaveFile(configFile, def->name, "edit", xml);
+    virUUIDFormat(def->uuid, uuidstr);
+    ret = virXMLSaveFile(configFile,
+                         virXMLPickShellSafeComment(def->name, uuidstr), "edit",
+                         xml);
 
  cleanup:
     VIR_FREE(configFile);
