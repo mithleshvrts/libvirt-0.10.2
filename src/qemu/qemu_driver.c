@@ -4345,7 +4345,6 @@ qemudDomainGetEmulatorPinInfo(virDomainPtr dom,
     virDomainDefPtr targetDef = NULL;
     int ret = -1;
     int maxcpu, hostcpus, pcpu;
-    virDomainVcpuPinDefPtr emulatorpin = NULL;
     virBitmapPtr cpumask = NULL;
     bool pinned;
 
@@ -4387,14 +4386,15 @@ qemudDomainGetEmulatorPinInfo(virDomainPtr dom,
         cpumaps[maplen - 1] &= (1 << maxcpu % 8) - 1;
     }
 
-    /* If no emulatorpin, all cpus should be used */
-    emulatorpin = targetDef->cputune.emulatorpin;
-    if (!emulatorpin) {
+    if (targetDef->cputune.emulatorpin) {
+        cpumask = targetDef->cputune.emulatorpin->cpumask;
+    } else if (targetDef->cpumask) {
+        cpumask = targetDef->cpumask;
+    } else {
         ret = 0;
         goto cleanup;
     }
 
-    cpumask = emulatorpin->cpumask;
     for (pcpu = 0; pcpu < maxcpu; pcpu++) {
         if (virBitmapGetBit(cpumask, pcpu, &pinned) < 0)
             goto cleanup;
