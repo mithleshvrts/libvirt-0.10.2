@@ -1619,6 +1619,9 @@ libvirt_iohelper_LDFLAGS = $(WARN_LDFLAGS) $(AM_LDFLAGS)
 libvirt_iohelper_LDADD =		\
 		libvirt_util.la		\
 		../gnulib/lib/libgnu.la
+if WITH_DTRACE_PROBES
+libvirt_iohelper_LDADD += libvirt_probes.lo
+endif
 
 libvirt_iohelper_CFLAGS = $(AM_CFLAGS)
 endif
@@ -1633,6 +1636,9 @@ libvirt_parthelper_LDADD =		\
 		$(LIBPARTED_LIBS)	\
 		libvirt_util.la		\
 		../gnulib/lib/libgnu.la
+if WITH_DTRACE_PROBES
+libvirt_parthelper_LDADD += libvirt_probes.lo
+endif
 
 libvirt_parthelper_CFLAGS = $(LIBPARTED_CFLAGS) $(AM_CFLAGS)
 endif
