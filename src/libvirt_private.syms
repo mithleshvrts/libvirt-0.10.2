@@ -1332,6 +1332,7 @@ virDomainListSnapshots;
 virFileLoopDeviceAssociate;
 virFileClose;
 virFileDirectFdFlag;
+virFileWrapperFdCatchError;
 virFileWrapperFdClose;
 virFileWrapperFdFree;
 virFileWrapperFdNew;
