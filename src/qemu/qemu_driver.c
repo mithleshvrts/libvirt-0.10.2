@@ -11180,8 +11180,10 @@ qemuDomainSnapshotCreateXML(virDomainPtr domain,
     char uuidstr[VIR_UUID_STRING_BUFLEN];
     virDomainSnapshotDefPtr def = NULL;
     bool update_current = true;
-    unsigned int parse_flags = 0;
+    unsigned int parse_flags = VIR_DOMAIN_SNAPSHOT_PARSE_DISKS;
     virDomainSnapshotObjPtr other = NULL;
+    int align_location = VIR_DOMAIN_SNAPSHOT_LOCATION_INTERNAL;
+    int align_match = true;
 
     virCheckFlags(VIR_DOMAIN_SNAPSHOT_CREATE_REDEFINE |
                   VIR_DOMAIN_SNAPSHOT_CREATE_CURRENT |
@@ -11205,8 +11207,6 @@ qemuDomainSnapshotCreateXML(virDomainPtr domain,
         update_current = false;
     if (flags & VIR_DOMAIN_SNAPSHOT_CREATE_REDEFINE)
         parse_flags |= VIR_DOMAIN_SNAPSHOT_PARSE_REDEFINE;
-    if (flags & VIR_DOMAIN_SNAPSHOT_CREATE_DISK_ONLY)
-        parse_flags |= VIR_DOMAIN_SNAPSHOT_PARSE_DISKS;
 
     qemuDriverLock(driver);
     virUUIDFormat(domain->uuid, uuidstr);
@@ -11233,6 +11233,9 @@ qemuDomainSnapshotCreateXML(virDomainPtr domain,
                        _("cannot halt after transient domain snapshot"));
         goto cleanup;
     }
+    if ((flags & VIR_DOMAIN_SNAPSHOT_CREATE_DISK_ONLY) ||
+        !virDomainObjIsActive(vm))
+        parse_flags |= VIR_DOMAIN_SNAPSHOT_PARSE_OFFLINE;
 
     if (!(def = virDomainSnapshotDefParseString(xmlDesc, driver->caps,
                                                 QEMU_EXPECTED_VIRT_TYPES,
@@ -11273,6 +11276,15 @@ qemuDomainSnapshotCreateXML(virDomainPtr domain,
         }
 
         /* Check that any replacement is compatible */
+        if ((flags & VIR_DOMAIN_SNAPSHOT_CREATE_DISK_ONLY) &&
+            def->state != VIR_DOMAIN_DISK_SNAPSHOT) {
+            virReportError(VIR_ERR_INVALID_ARG,
+                           _("disk-only flag for snapshot %s requires "
+                             "disk-snapshot state"),
+                           def->name);
+            goto cleanup;
+
+        }
         if (def->dom &&
             memcmp(def->dom->uuid, domain->uuid, VIR_UUID_BUFLEN)) {
             virReportError(VIR_ERR_INVALID_ARG,
@@ -11322,10 +11334,13 @@ qemuDomainSnapshotCreateXML(virDomainPtr domain,
             other->def = NULL;
             snap = other;
         }
-        if (def->state == VIR_DOMAIN_DISK_SNAPSHOT && def->dom) {
-            if (virDomainSnapshotAlignDisks(def,
-                                            VIR_DOMAIN_SNAPSHOT_LOCATION_EXTERNAL,
-                                            false) < 0)
+        if (def->dom) {
+            if (def->state == VIR_DOMAIN_DISK_SNAPSHOT) {
+                align_location = VIR_DOMAIN_SNAPSHOT_LOCATION_EXTERNAL;
+                align_match = false;
+            }
+            if (virDomainSnapshotAlignDisks(def, align_location,
+                                            align_match) < 0)
                 goto cleanup;
         }
     } else {
@@ -11344,13 +11359,14 @@ qemuDomainSnapshotCreateXML(virDomainPtr domain,
                                  "implemented yet"));
                 goto cleanup;
             }
-            if (virDomainSnapshotAlignDisks(def,
-                                            VIR_DOMAIN_SNAPSHOT_LOCATION_EXTERNAL,
-                                            false) < 0)
-                goto cleanup;
-            if (qemuDomainSnapshotDiskPrepare(vm, def, &flags) < 0)
+            align_location = VIR_DOMAIN_SNAPSHOT_LOCATION_EXTERNAL;
+            align_match = false;
+            if (virDomainSnapshotAlignDisks(def, align_location,
+                                            align_match) < 0 ||
+                qemuDomainSnapshotDiskPrepare(vm, def, &flags) < 0)
                 goto cleanup;
             def->state = VIR_DOMAIN_DISK_SNAPSHOT;
+            def->memory = VIR_DOMAIN_SNAPSHOT_LOCATION_NONE;
         } else {
             /* In a perfect world, we would allow qemu to tell us this.
              * The problem is that qemu only does this check
@@ -11361,9 +11377,14 @@ qemuDomainSnapshotCreateXML(virDomainPtr domain,
              * the boot device.  This is probably a bug in qemu, but we'll
              * work around it here for now.
              */
-            if (!qemuDomainSnapshotIsAllowed(vm))
+            if (!qemuDomainSnapshotIsAllowed(vm) ||
+                virDomainSnapshotAlignDisks(def, align_location,
+                                            align_match) < 0)
                 goto cleanup;
             def->state = virDomainObjGetState(vm, NULL);
+            def->memory = (def->state == VIR_DOMAIN_SHUTOFF ?
+                           VIR_DOMAIN_SNAPSHOT_LOCATION_NONE :
+                           VIR_DOMAIN_SNAPSHOT_LOCATION_INTERNAL);
         }
     }
 
