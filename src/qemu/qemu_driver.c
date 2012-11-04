@@ -10636,13 +10636,14 @@ qemuDomainSnapshotCreateInactive(struct qemud_driver *driver,
     return qemuDomainSnapshotForEachQcow2(driver, vm, snap, "-c", false);
 }
 
+
 /* The domain is expected to be locked and active. */
 static int
-qemuDomainSnapshotCreateActive(virConnectPtr conn,
-                               struct qemud_driver *driver,
-                               virDomainObjPtr *vmptr,
-                               virDomainSnapshotObjPtr snap,
-                               unsigned int flags)
+qemuDomainSnapshotCreateActiveInternal(virConnectPtr conn,
+                                       struct qemud_driver *driver,
+                                       virDomainObjPtr *vmptr,
+                                       virDomainSnapshotObjPtr snap,
+                                       unsigned int flags)
 {
     virDomainObjPtr vm = *vmptr;
     qemuDomainObjPrivatePtr priv = vm->privateData;
@@ -11431,8 +11432,8 @@ qemuDomainSnapshotCreateXML(virDomainPtr domain,
         if (qemuDomainSnapshotCreateInactive(driver, vm, snap) < 0)
             goto cleanup;
     } else {
-        if (qemuDomainSnapshotCreateActive(domain->conn, driver,
-                                           &vm, snap, flags) < 0)
+        if (qemuDomainSnapshotCreateActiveInternal(domain->conn, driver,
+                                                   &vm, snap, flags) < 0)
             goto cleanup;
     }
 
