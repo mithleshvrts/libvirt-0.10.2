@@ -2751,7 +2751,7 @@ static int
 qemuDomainSaveMemory(struct qemud_driver *driver,
                      virDomainObjPtr vm,
                      const char *path,
-                     const char *xml,
+                     const char *domXML,
                      int compressed,
                      bool was_running,
                      unsigned int flags,
@@ -2768,6 +2768,7 @@ qemuDomainSaveMemory(struct qemud_driver *driver,
     unsigned long long pad;
     unsigned long long offset;
     size_t len;
+    char *xml = NULL;
 
     memset(&header, 0, sizeof(header));
     memcpy(header.magic, QEMUD_SAVE_PARTIAL, sizeof(header.magic));
@@ -2776,7 +2777,7 @@ qemuDomainSaveMemory(struct qemud_driver *driver,
 
     header.compressed = compressed;
 
-    len = strlen(xml) + 1;
+    len = strlen(domXML) + 1;
     offset = sizeof(header) + len;
 
     /* Due to way we append QEMU state on our header with dd,
@@ -2790,10 +2791,12 @@ qemuDomainSaveMemory(struct qemud_driver *driver,
     pad = 1024;
     pad += (QEMU_MONITOR_MIGRATE_TO_FILE_BS -
             ((offset + pad) % QEMU_MONITOR_MIGRATE_TO_FILE_BS));
-    if (VIR_EXPAND_N(xml, len, pad) < 0) {
+    if (VIR_ALLOC_N(xml, len + pad) < 0) {
         virReportOOMError();
         goto cleanup;
     }
+    strcpy(xml, domXML);
+
     offset += pad;
     header.xml_len = len;
 
@@ -2861,6 +2864,7 @@ cleanup:
     VIR_FORCE_CLOSE(fd);
     virFileWrapperFdCatchError(wrapperFd);
     virFileWrapperFdFree(wrapperFd);
+    VIR_FREE(xml);
 
     if (ret != 0 && needUnlink)
         unlink(path);
