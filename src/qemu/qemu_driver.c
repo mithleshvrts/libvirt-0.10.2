@@ -2977,8 +2977,12 @@ endjob:
                 rc = qemuProcessStartCPUs(driver, vm, dom->conn,
                                           VIR_DOMAIN_RUNNING_SAVE_CANCELED,
                                           QEMU_ASYNC_JOB_SAVE);
-                if (rc < 0)
+                if (rc < 0) {
                     VIR_WARN("Unable to resume guest CPUs after save failure");
+                    event = virDomainEventNewFromObj(vm,
+                                                     VIR_DOMAIN_EVENT_SUSPENDED,
+                                                     VIR_DOMAIN_EVENT_SUSPENDED_API_ERROR);
+                }
             }
         }
         if (qemuDomainObjEndAsyncJob(driver, vm) == 0)
@@ -3435,6 +3439,9 @@ endjob:
         if (resume && qemuProcessStartCPUs(driver, vm, dom->conn,
                                            VIR_DOMAIN_RUNNING_UNPAUSED,
                                            QEMU_ASYNC_JOB_DUMP) < 0) {
+            event = virDomainEventNewFromObj(vm,
+                                             VIR_DOMAIN_EVENT_SUSPENDED,
+                                             VIR_DOMAIN_EVENT_SUSPENDED_API_ERROR);
             if (virGetLastError() == NULL)
                 virReportError(VIR_ERR_OPERATION_FAILED,
                                "%s", _("resuming after dump failed"));
@@ -10657,6 +10664,7 @@ qemuDomainSnapshotCreateActiveInternal(virConnectPtr conn,
 {
     virDomainObjPtr vm = *vmptr;
     qemuDomainObjPrivatePtr priv = vm->privateData;
+    virDomainEventPtr event = NULL;
     bool resume = false;
     int ret = -1;
 
@@ -10693,8 +10701,6 @@ qemuDomainSnapshotCreateActiveInternal(virConnectPtr conn,
         goto cleanup;
 
     if (flags & VIR_DOMAIN_SNAPSHOT_CREATE_HALT) {
-        virDomainEventPtr event;
-
         event = virDomainEventNewFromObj(vm, VIR_DOMAIN_EVENT_STOPPED,
                                          VIR_DOMAIN_EVENT_STOPPED_FROM_SNAPSHOT);
         qemuProcessStop(driver, vm, VIR_DOMAIN_SHUTOFF_FROM_SNAPSHOT, 0);
@@ -10704,18 +10710,20 @@ qemuDomainSnapshotCreateActiveInternal(virConnectPtr conn,
         ignore_value(qemuDomainObjEndJob(driver, vm));
         resume = false;
         vm = NULL;
-        if (event)
-            qemuDomainEventQueue(driver, event);
     }
 
 cleanup:
     if (resume && virDomainObjIsActive(vm) &&
         qemuProcessStartCPUs(driver, vm, conn,
                              VIR_DOMAIN_RUNNING_UNPAUSED,
-                             QEMU_ASYNC_JOB_NONE) < 0 &&
-        virGetLastError() == NULL) {
-        virReportError(VIR_ERR_OPERATION_FAILED, "%s",
-                       _("resuming after snapshot failed"));
+                             QEMU_ASYNC_JOB_NONE) < 0) {
+        event = virDomainEventNewFromObj(vm,
+                                         VIR_DOMAIN_EVENT_SUSPENDED,
+                                         VIR_DOMAIN_EVENT_SUSPENDED_API_ERROR);
+        if (virGetLastError() == NULL) {
+            virReportError(VIR_ERR_OPERATION_FAILED, "%s",
+                           _("resuming after snapshot failed"));
+        }
     }
 
 endjob:
@@ -10725,6 +10733,9 @@ endjob:
         *vmptr = NULL;
         ret = -1;
     }
+
+    if (event)
+        qemuDomainEventQueue(driver, event);
 
     return ret;
 }
@@ -11226,10 +11237,17 @@ endjob:
     if (resume && vm && virDomainObjIsActive(vm) &&
         qemuProcessStartCPUs(driver, vm, conn,
                              VIR_DOMAIN_RUNNING_UNPAUSED,
-                             QEMU_ASYNC_JOB_NONE) < 0 &&
-        virGetLastError() == NULL) {
-        virReportError(VIR_ERR_OPERATION_FAILED, "%s",
-                       _("resuming after snapshot failed"));
+                             QEMU_ASYNC_JOB_NONE) < 0) {
+        virDomainEventPtr event = NULL;
+        event = virDomainEventNewFromObj(vm,
+                                         VIR_DOMAIN_EVENT_SUSPENDED,
+                                         VIR_DOMAIN_EVENT_SUSPENDED_API_ERROR);
+        if (event)
+            qemuDomainEventQueue(driver, event);
+        if (virGetLastError() == NULL) {
+            virReportError(VIR_ERR_OPERATION_FAILED, "%s",
+                           _("resuming after snapshot failed"));
+        }
 
         return -1;
     }
@@ -12811,10 +12829,17 @@ cleanup:
     if (resume && virDomainObjIsActive(vm) &&
         qemuProcessStartCPUs(driver, vm, conn,
                              VIR_DOMAIN_RUNNING_UNPAUSED,
-                             QEMU_ASYNC_JOB_NONE) < 0 &&
-        virGetLastError() == NULL) {
-        virReportError(VIR_ERR_OPERATION_FAILED, "%s",
-                       _("resuming after drive-reopen failed"));
+                             QEMU_ASYNC_JOB_NONE) < 0) {
+        virDomainEventPtr event = NULL;
+        event = virDomainEventNewFromObj(vm,
+                                         VIR_DOMAIN_EVENT_SUSPENDED,
+                                         VIR_DOMAIN_EVENT_SUSPENDED_API_ERROR);
+        if (event)
+            qemuDomainEventQueue(driver, event);
+        if (virGetLastError() == NULL) {
+            virReportError(VIR_ERR_OPERATION_FAILED, "%s",
+                           _("resuming after drive-reopen failed"));
+        }
     }
     return ret;
 }
