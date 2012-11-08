@@ -587,6 +587,20 @@ static void qemuDomainNetsRestart(void *payload,
     virDomainObjUnlock(vm);
 }
 
+
+static void
+qemuDomainFindMaxID(void *payload,
+                    const void *name ATTRIBUTE_UNUSED,
+                    void *data)
+{
+    virDomainObjPtr vm = payload;
+    int *driver_maxid = data;
+
+    if (vm->def->id >= *driver_maxid)
+        *driver_maxid = vm->def->id + 1;
+}
+
+
 /**
  * qemudStartup:
  *
@@ -843,6 +857,13 @@ qemudStartup(int privileged) {
                                 1, QEMU_EXPECTED_VIRT_TYPES,
                                 NULL, NULL) < 0)
         goto error;
+
+    /* find the maximum ID from active and transient configs to initialize
+     * the driver with. This is to avoid race between autostart and reconnect
+     * threads */
+    virHashForEach(qemu_driver->domains.objs,
+                   qemuDomainFindMaxID,
+                   &qemu_driver->nextvmid);
 
     virHashForEach(qemu_driver->domains.objs, qemuDomainNetsRestart, NULL);
 
