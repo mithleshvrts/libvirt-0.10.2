@@ -10383,6 +10383,7 @@ static int qemuDomainAbortJob(virDomainPtr dom) {
     }
 
     VIR_DEBUG("Cancelling job at client request");
+    qemuDomainObjAbortAsyncJob(vm);
     qemuDomainObjEnterMonitor(driver, vm);
     ret = qemuMonitorMigrateCancel(priv->mon);
     qemuDomainObjExitMonitor(driver, vm);
