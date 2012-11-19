@@ -17947,6 +17947,16 @@ error:
  * whether they have metadata that would prevent the removal of the last
  * reference to a domain.
  *
+ * The next group of @flags is VIR_DOMAIN_SNAPSHOT_LIST_INACTIVE,
+ * VIR_DOMAIN_SNAPSHOT_LIST_ACTIVE, and VIR_DOMAIN_SNAPSHOT_LIST_DISK_ONLY,
+ * for filtering snapshots based on what domain state is tracked by the
+ * snapshot.
+ *
+ * The next group of @flags is VIR_DOMAIN_SNAPSHOT_LIST_INTERNAL and
+ * VIR_DOMAIN_SNAPSHOT_LIST_EXTERNAL, for filtering snapshots based on
+ * whether the snapshot is stored inside the disk images or as
+ * additional files.
+ *
  * Returns the number of domain snapshots found or -1 in case of error.
  */
 int
@@ -18010,6 +18020,16 @@ error:
  * VIR_DOMAIN_SNAPSHOT_LIST_NO_METADATA, for filtering snapshots based on
  * whether they have metadata that would prevent the removal of the last
  * reference to a domain.
+ *
+ * The next group of @flags is VIR_DOMAIN_SNAPSHOT_LIST_INACTIVE,
+ * VIR_DOMAIN_SNAPSHOT_LIST_ACTIVE, and VIR_DOMAIN_SNAPSHOT_LIST_DISK_ONLY,
+ * for filtering snapshots based on what domain state is tracked by the
+ * snapshot.
+ *
+ * The next group of @flags is VIR_DOMAIN_SNAPSHOT_LIST_INTERNAL and
+ * VIR_DOMAIN_SNAPSHOT_LIST_EXTERNAL, for filtering snapshots based on
+ * whether the snapshot is stored inside the disk images or as
+ * additional files.
  *
  * Note that this command is inherently racy: another connection can
  * define a new snapshot between a call to virDomainSnapshotNum() and
@@ -18093,6 +18113,16 @@ error:
  * whether they have metadata that would prevent the removal of the last
  * reference to a domain.
  *
+ * The next group of @flags is VIR_DOMAIN_SNAPSHOT_LIST_INACTIVE,
+ * VIR_DOMAIN_SNAPSHOT_LIST_ACTIVE, and VIR_DOMAIN_SNAPSHOT_LIST_DISK_ONLY,
+ * for filtering snapshots based on what domain state is tracked by the
+ * snapshot.
+ *
+ * The next group of @flags is VIR_DOMAIN_SNAPSHOT_LIST_INTERNAL and
+ * VIR_DOMAIN_SNAPSHOT_LIST_EXTERNAL, for filtering snapshots based on
+ * whether the snapshot is stored inside the disk images or as
+ * additional files.
+ *
  * Returns the number of domain snapshots found or -1 and sets @snaps to
  * NULL in case of error.  On success, the array stored into @snaps is
  * guaranteed to have an extra allocated element set to NULL but not included
@@ -18163,6 +18193,16 @@ error:
  * whether they have metadata that would prevent the removal of the last
  * reference to a domain.
  *
+ * The next group of @flags is VIR_DOMAIN_SNAPSHOT_LIST_INACTIVE,
+ * VIR_DOMAIN_SNAPSHOT_LIST_ACTIVE, and VIR_DOMAIN_SNAPSHOT_LIST_DISK_ONLY,
+ * for filtering snapshots based on what domain state is tracked by the
+ * snapshot.
+ *
+ * The next group of @flags is VIR_DOMAIN_SNAPSHOT_LIST_INTERNAL and
+ * VIR_DOMAIN_SNAPSHOT_LIST_EXTERNAL, for filtering snapshots based on
+ * whether the snapshot is stored inside the disk images or as
+ * additional files.
+ *
  * Returns the number of domain snapshots found or -1 in case of error.
  */
 int
@@ -18228,6 +18268,16 @@ error:
  * VIR_DOMAIN_SNAPSHOT_LIST_NO_METADATA, for filtering snapshots based on
  * whether they have metadata that would prevent the removal of the last
  * reference to a domain.
+ *
+ * The next group of @flags is VIR_DOMAIN_SNAPSHOT_LIST_INACTIVE,
+ * VIR_DOMAIN_SNAPSHOT_LIST_ACTIVE, and VIR_DOMAIN_SNAPSHOT_LIST_DISK_ONLY,
+ * for filtering snapshots based on what domain state is tracked by the
+ * snapshot.
+ *
+ * The next group of @flags is VIR_DOMAIN_SNAPSHOT_LIST_INTERNAL and
+ * VIR_DOMAIN_SNAPSHOT_LIST_EXTERNAL, for filtering snapshots based on
+ * whether the snapshot is stored inside the disk images or as
+ * additional files.
  *
  * Returns the number of domain snapshots found or -1 in case of error.
  * Note that this command is inherently racy: another connection can
@@ -18315,6 +18365,16 @@ error:
  * VIR_DOMAIN_SNAPSHOT_LIST_NO_METADATA, for filtering snapshots based on
  * whether they have metadata that would prevent the removal of the last
  * reference to a domain.
+ *
+ * The next group of @flags is VIR_DOMAIN_SNAPSHOT_LIST_INACTIVE,
+ * VIR_DOMAIN_SNAPSHOT_LIST_ACTIVE, and VIR_DOMAIN_SNAPSHOT_LIST_DISK_ONLY,
+ * for filtering snapshots based on what domain state is tracked by the
+ * snapshot.
+ *
+ * The next group of @flags is VIR_DOMAIN_SNAPSHOT_LIST_INTERNAL and
+ * VIR_DOMAIN_SNAPSHOT_LIST_EXTERNAL, for filtering snapshots based on
+ * whether the snapshot is stored inside the disk images or as
+ * additional files.
  *
  * Returns the number of domain snapshots found or -1 and sets @snaps to
  * NULL in case of error.  On success, the array stored into @snaps is
