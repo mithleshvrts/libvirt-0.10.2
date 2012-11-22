@@ -2012,7 +2012,7 @@ qemuDomainDetermineDiskChain(struct qemud_driver *driver,
 {
     bool probe = driver->allowDiskFormatProbing;
 
-    if (!disk->src)
+    if (!disk->src || disk->type == VIR_DOMAIN_DISK_TYPE_NETWORK)
         return 0;
 
     if (disk->backingChain) {
