@@ -360,6 +360,7 @@ virDomainDiskFindByBusAndDst;
 virDomainDiskFindControllerModel;
 virDomainDiskGeometryTransTypeFromString;
 virDomainDiskGeometryTransTypeToString;
+virDomainDiskHostDefFree;
 virDomainDiskIndexByName;
 virDomainDiskInsert;
 virDomainDiskInsertPreAlloced;
