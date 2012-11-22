@@ -366,6 +366,8 @@ virDomainDiskInsertPreAlloced;
 virDomainDiskIoTypeFromString;
 virDomainDiskIoTypeToString;
 virDomainDiskPathByName;
+virDomainDiskProtocolTransportTypeFromString;
+virDomainDiskProtocolTransportTypeToString;
 virDomainDiskRemove;
 virDomainDiskRemoveByName;
 virDomainDiskTypeFromString;
