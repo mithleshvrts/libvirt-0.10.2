@@ -575,24 +575,19 @@ static void virLXCControllerClientCloseHook(virNetServerClientPtr client)
 
 static void virLXCControllerClientPrivateFree(void *data)
 {
-    VIR_FREE(data);
+    virLXCControllerPtr ctrl = data;
+    VIR_DEBUG("Got private data free %p", ctrl);
 }
 
 static void *virLXCControllerClientPrivateNew(virNetServerClientPtr client,
                                               void *opaque)
 {
     virLXCControllerPtr ctrl = opaque;
-    int *dummy;
-
-    if (VIR_ALLOC(dummy) < 0) {
-        virReportOOMError();
-        return NULL;
-    }
 
     virNetServerClientSetCloseHook(client, virLXCControllerClientCloseHook);
     VIR_DEBUG("Got new client %p", client);
     ctrl->client = client;
-    return dummy;
+    return ctrl;
 }
 
 
@@ -1316,7 +1311,7 @@ virLXCControllerEventSendExit(virLXCControllerPtr ctrl,
 {
     virLXCProtocolExitEventMsg msg;
 
-    VIR_DEBUG("Exit status %d", exitstatus);
+    VIR_DEBUG("Exit status %d (client=%p)", exitstatus, ctrl->client);
     memset(&msg, 0, sizeof(msg));
     switch (exitstatus) {
     case 0:
