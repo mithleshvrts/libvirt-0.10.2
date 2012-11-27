@@ -6055,7 +6055,7 @@ qemuDomainDetachDeviceDiskLive(struct qemud_driver *driver,
         if (disk->bus == VIR_DOMAIN_DISK_BUS_VIRTIO)
             ret = qemuDomainDetachPciDiskDevice(driver, vm, dev);
         else if (disk->bus == VIR_DOMAIN_DISK_BUS_SCSI)
-            ret =  qemuDomainDetachDiskDevice(driver, vm, dev);
+            ret = qemuDomainDetachDiskDevice(driver, vm, dev);
         else if (dev->data.disk->bus == VIR_DOMAIN_DISK_BUS_USB)
             ret = qemuDomainDetachDiskDevice(driver, vm, dev);
         else
