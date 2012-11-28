@@ -2883,7 +2883,8 @@ qemuDomainSaveMemory(struct qemud_driver *driver,
 
 cleanup:
     VIR_FORCE_CLOSE(fd);
-    virFileWrapperFdCatchError(wrapperFd);
+    if (wrapperFd)
+        virFileWrapperFdCatchError(wrapperFd);
     virFileWrapperFdFree(wrapperFd);
     VIR_FREE(xml);
 
@@ -3339,7 +3340,8 @@ doCoreDump(struct qemud_driver *driver,
 cleanup:
     VIR_FORCE_CLOSE(fd);
     if (ret != 0) {
-        virFileWrapperFdCatchError(wrapperFd);
+        if (wrapperFd)
+            virFileWrapperFdCatchError(wrapperFd);
         unlink(path);
     }
     virFileWrapperFdFree(wrapperFd);
