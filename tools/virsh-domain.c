@@ -4751,7 +4751,7 @@ cmdVcpuPin(vshControl *ctl, const vshCmd *cmd)
 
     /* Pin mode: pinning specified vcpu to specified physical cpus*/
 
-    cpumap = vshCalloc(ctl, cpumaplen, sizeof(cpumap));
+    cpumap = vshCalloc(ctl, cpumaplen, sizeof(*cpumap));
     /* Parse cpulist */
     cur = cpulist;
     if (*cur == 0) {
@@ -4939,7 +4939,7 @@ cmdEmulatorPin(vshControl *ctl, const vshCmd *cmd)
 
     /* Pin mode: pinning emulator threads to specified physical cpus*/
 
-    cpumap = vshCalloc(ctl, cpumaplen, sizeof(cpumap));
+    cpumap = vshCalloc(ctl, cpumaplen, sizeof(*cpumap));
     /* Parse cpulist */
     cur = cpulist;
     if (*cur == 0) {
