@@ -1030,7 +1030,7 @@ virDomainListSnapshots(virDomainSnapshotObjListPtr snapshots,
     int ret = -1;
     int i;
 
-    if (!snaps)
+    if (!snaps || count < 0)
         return count;
     if (VIR_ALLOC_N(names, count) < 0 ||
         VIR_ALLOC_N(list, count + 1) < 0) {
