@@ -2557,7 +2557,7 @@ virGetUserIDByName(const char *name, uid_t *uid)
             /* log the possible error from getpwnam_r. Unfortunately error
              * reporting from this function is bad and we can't really
              * rely on it, so we just report that the user wasn't found */
-            VIR_WARN("User record for user '%s' does was not found: %s",
+            VIR_WARN("User record for user '%s' was not found: %s",
                      name, virStrerror(rc, buf, sizeof(buf)));
         }
 
@@ -2641,7 +2641,7 @@ virGetGroupIDByName(const char *name, gid_t *gid)
             /* log the possible error from getgrnam_r. Unfortunately error
              * reporting from this function is bad and we can't really
              * rely on it, so we just report that the user wasn't found */
-            VIR_WARN("Group record for user '%s' does was not found: %s",
+            VIR_WARN("Group record for user '%s' was not found: %s",
                      name, virStrerror(rc, buf, sizeof(buf)));
         }
 
