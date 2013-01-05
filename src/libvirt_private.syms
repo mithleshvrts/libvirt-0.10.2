@@ -1087,6 +1087,7 @@ virDomainSnapshotAlignDisks;
 virDomainSnapshotAssignDef;
 virDomainSnapshotDefFormat;
 virDomainSnapshotDefFree;
+virDomainSnapshotDefIsExternal;
 virDomainSnapshotDefParseString;
 virDomainSnapshotDropParent;
 virDomainSnapshotFindByName;
