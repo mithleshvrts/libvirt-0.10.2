@@ -537,6 +537,14 @@ enum virDomainDiskSecretType {
     VIR_DOMAIN_DISK_SECRET_TYPE_LAST
 };
 
+enum virDomainDiskSGIO {
+    VIR_DOMAIN_DISK_SGIO_DEFAULT = 0,
+    VIR_DOMAIN_DISK_SGIO_FILTERED,
+    VIR_DOMAIN_DISK_SGIO_UNFILTERED,
+
+    VIR_DOMAIN_DISK_SGIO_LAST
+};
+
 typedef struct _virDomainBlockIoTuneInfo virDomainBlockIoTuneInfo;
 struct _virDomainBlockIoTuneInfo {
     unsigned long long total_bytes_sec;
@@ -607,6 +615,7 @@ struct _virDomainDiskDef {
     virStorageEncryptionPtr encryption;
     bool rawio_specified;
     int rawio; /* no = 0, yes = 1 */
+    int sgio; /* enum virDomainDiskSGIO */
 
     size_t nseclabels;
     virSecurityDeviceLabelDefPtr *seclabels;
@@ -2197,6 +2206,7 @@ VIR_ENUM_DECL(virDomainDiskErrorPolicy)
 VIR_ENUM_DECL(virDomainDiskProtocol)
 VIR_ENUM_DECL(virDomainDiskIo)
 VIR_ENUM_DECL(virDomainDiskSecretType)
+VIR_ENUM_DECL(virDomainDiskSGIO)
 VIR_ENUM_DECL(virDomainDiskTray)
 VIR_ENUM_DECL(virDomainIoEventFd)
 VIR_ENUM_DECL(virDomainVirtioEventIdx)
