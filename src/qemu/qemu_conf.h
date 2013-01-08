@@ -140,6 +140,8 @@ struct qemud_driver {
     /* The devices which is are not in use by the host or any guest. */
     pciDeviceList *inactivePciHostdevs;
 
+    virHashTablePtr sharedDisks;
+
     virBitmapPtr reservedRemotePorts;
 
     virSysinfoDefPtr hostsysinfo;
@@ -203,5 +205,15 @@ qemuDriverCloseCallback qemuDriverCloseCallbackGet(struct qemud_driver *driver,
                                                    virConnectPtr conn);
 void qemuDriverCloseCallbackRunAll(struct qemud_driver *driver,
                                    virConnectPtr conn);
+
+int qemuAddSharedDisk(virHashTablePtr sharedDisks,
+                      const char *disk_path)
+    ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
+
+int qemuRemoveSharedDisk(virHashTablePtr sharedDisks,
+                         const char *disk_path)
+    ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
+char * qemuGetSharedDiskKey(const char *disk_path)
+    ATTRIBUTE_NONNULL(1);
 
 #endif /* __QEMUD_CONF_H */
