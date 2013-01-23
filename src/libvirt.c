@@ -17669,7 +17669,12 @@ virDomainSnapshotGetName(virDomainSnapshotPtr snapshot)
  * virDomainSnapshotGetDomain:
  * @snapshot: a snapshot object
  *
- * Get the domain that a snapshot was created for
+ * Provides the domain pointer associated with a snapshot.  The
+ * reference counter on the domain is not increased by this
+ * call.
+ *
+ * WARNING: When writing libvirt bindings in other languages, do not use this
+ * function.  Instead, store the domain and the snapshot object together.
  *
  * Returns the domain or NULL.
  */
@@ -17693,7 +17698,12 @@ virDomainSnapshotGetDomain(virDomainSnapshotPtr snapshot)
  * virDomainSnapshotGetConnect:
  * @snapshot: a snapshot object
  *
- * Get the connection that owns the domain that a snapshot was created for
+ * Provides the connection pointer associated with a snapshot.  The
+ * reference counter on the connection is not increased by this
+ * call.
+ *
+ * WARNING: When writing libvirt bindings in other languages, do not use this
+ * function.  Instead, store the connection and the snapshot object together.
  *
  * Returns the connection or NULL.
  */
