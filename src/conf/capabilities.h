@@ -83,12 +83,21 @@ struct _virCapsGuest {
     virCapsGuestFeaturePtr *features;
 };
 
+typedef struct _virCapsHostNUMACellCPU virCapsHostNUMACellCPU;
+typedef virCapsHostNUMACellCPU *virCapsHostNUMACellCPUPtr;
+struct _virCapsHostNUMACellCPU {
+    unsigned int id;
+    unsigned int socket_id;
+    unsigned int core_id;
+    virBitmapPtr siblings;
+};
+
 typedef struct _virCapsHostNUMACell virCapsHostNUMACell;
 typedef virCapsHostNUMACell *virCapsHostNUMACellPtr;
 struct _virCapsHostNUMACell {
     int num;
     int ncpus;
-    int *cpus;
+    virCapsHostNUMACellCPUPtr cpus;
 };
 
 typedef struct _virCapsHostSecModel virCapsHostSecModel;
@@ -200,7 +209,7 @@ extern int
 virCapabilitiesAddHostNUMACell(virCapsPtr caps,
                                int num,
                                int ncpus,
-                               const int *cpus);
+                               virCapsHostNUMACellCPUPtr cpus);
 
 
 extern int
@@ -250,6 +259,9 @@ virCapabilitiesSupportsGuestOSTypeArch(virCapsPtr caps,
                                        const char *ostype,
                                        const char *arch);
 
+void
+virCapabilitiesClearHostNUMACellCPUTopology(virCapsHostNUMACellCPUPtr cpu,
+                                            size_t ncpus);
 
 extern const char *
 virCapabilitiesDefaultGuestArch(virCapsPtr caps,

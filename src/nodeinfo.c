@@ -1285,9 +1285,10 @@ nodeCapsInitNUMA(virCapsPtr caps)
     int n;
     unsigned long *mask = NULL;
     unsigned long *allonesmask = NULL;
-    int *cpus = NULL;
+    virCapsHostNUMACellCPUPtr cpus = NULL;
     int ret = -1;
     int max_n_cpus = NUMA_MAX_N_CPUS;
+    int ncpus = 0;
 
     if (numa_available() < 0)
         return 0;
@@ -1301,7 +1302,6 @@ nodeCapsInitNUMA(virCapsPtr caps)
 
     for (n = 0 ; n <= numa_max_node() ; n++) {
         int i;
-        int ncpus;
         /* The first time this returns -1, ENOENT if node doesn't exist... */
         if (numa_node_to_cpus(n, mask, mask_n_bytes) < 0) {
             VIR_WARN("NUMA topology for cell %d of %d not available, ignoring",
@@ -1324,20 +1324,17 @@ nodeCapsInitNUMA(virCapsPtr caps)
 
         for (ncpus = 0, i = 0 ; i < max_n_cpus ; i++)
             if (MASK_CPU_ISSET(mask, i))
-                cpus[ncpus++] = i;
+                cpus[ncpus++].id = i;
 
-        if (virCapabilitiesAddHostNUMACell(caps,
-                                           n,
-                                           ncpus,
-                                           cpus) < 0)
+        if (virCapabilitiesAddHostNUMACell(caps, n, ncpus, cpus) < 0)
             goto cleanup;
-
-        VIR_FREE(cpus);
+        cpus = NULL;
     }
 
     ret = 0;
 
 cleanup:
+    virCapabilitiesClearHostNUMACellCPUTopology(cpus, ncpus);
     VIR_FREE(cpus);
     VIR_FREE(mask);
     VIR_FREE(allonesmask);
