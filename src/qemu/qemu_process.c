@@ -3656,8 +3656,12 @@ int qemuProcessStart(virConnectPtr conn,
             if (driver->spiceTLS &&
                 (vm->def->graphics[0]->data.spice.autoport ||
                  vm->def->graphics[0]->data.spice.tlsPort == -1)) {
-                int tlsPort = qemuProcessNextFreePort(driver,
-                                                      vm->def->graphics[0]->data.spice.port + 1);
+                int tlsPort;
+                if (vm->def->graphics[0]->data.spice.port)
+                    tlsPort = qemuProcessNextFreePort(driver, vm->def->graphics[0]->data.spice.port + 1);
+                else
+                    tlsPort = qemuProcessNextFreePort(driver, driver->remotePortMin);
+
                 if (tlsPort < 0) {
                     virReportError(VIR_ERR_INTERNAL_ERROR,
                                    "%s", _("Unable to find an unused port for SPICE TLS"));
