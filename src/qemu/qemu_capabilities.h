@@ -157,6 +157,7 @@ enum qemuCapsFlags {
     QEMU_CAPS_VIRTIO_NET_MACVTAP_COMPAT, /* virtio-net-pci.__com_redhat_macvtap_compat */
     QEMU_CAPS_DRIVE_MIRROR,             /* drive-mirror monitor command */
     QEMU_CAPS_DRIVE_REOPEN,             /* drive-reopen vs block-job-complete */
+    QEMU_CAPS_DISK_SNAPSHOT,            /* blockdev-snapshot-sync command */
 
     QEMU_CAPS_LAST,                   /* this must always be the last item */
 };

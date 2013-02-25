@@ -2797,7 +2797,7 @@ qemuMonitorDiskSnapshot(qemuMonitorPtr mon, virJSONValuePtr actions,
                         const char *device, const char *file,
                         const char *format, bool reuse)
 {
-    int ret;
+    int ret = -1;
 
     VIR_DEBUG("mon=%p, actions=%p, device=%s, file=%s, format=%s, reuse=%d",
               mon, actions, device, file, format, reuse);
@@ -2808,17 +2808,12 @@ qemuMonitorDiskSnapshot(qemuMonitorPtr mon, virJSONValuePtr actions,
         return -1;
     }
 
-    if (mon->json) {
+    if (mon->json)
         ret = qemuMonitorJSONDiskSnapshot(mon, actions, device, file, format,
                                           reuse);
-    } else {
-        if (actions || STRNEQ(format, "qcow2") || reuse) {
-            virReportError(VIR_ERR_INVALID_ARG, "%s",
-                           _("text monitor lacks several snapshot features"));
-            return -1;
-        }
-        ret = qemuMonitorTextDiskSnapshot(mon, device, file);
-    }
+    else
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("disk snapshot requires JSON monitor"));
     return ret;
 }
 

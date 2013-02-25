@@ -189,8 +189,9 @@ VIR_ENUM_IMPL(qemuCaps, QEMU_CAPS_LAST,
               /* RHEL-specific below here */
               "disable-ksm",
               "virtio-net-pci.__com_redhat_macvtap_compat",
-               "drive-mirror",
-               "drive-reopen",
+              "drive-mirror",
+              "drive-reopen",
+              "blockdev-snapshot-sync",
     );
 
 struct _qemuCaps {
@@ -1891,6 +1892,8 @@ qemuCapsProbeQMPCommands(qemuCapsPtr caps,
         else if (STREQ(name, "drive-mirror") ||
                  STREQ(name, "__com.redhat_drive-mirror"))
             qemuCapsSet(caps, QEMU_CAPS_DRIVE_MIRROR);
+        else if (STREQ(name, "blockdev-snapshot-sync"))
+            qemuCapsSet(caps, QEMU_CAPS_DISK_SNAPSHOT);
         VIR_FREE(name);
     }
     VIR_FREE(commands);
