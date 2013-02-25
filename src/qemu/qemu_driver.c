@@ -2654,6 +2654,33 @@ qemuCompressProgramName(int compress)
             qemudSaveCompressionTypeToString(compress));
 }
 
+static virCommandPtr
+qemuCompressGetCommand(enum qemud_save_formats compression)
+{
+    virCommandPtr ret = NULL;
+    const char *prog = qemudSaveCompressionTypeToString(compression);
+
+    if (!prog) {
+        virReportError(VIR_ERR_OPERATION_FAILED,
+                       _("Invalid compressed save format %d"),
+                       compression);
+        return NULL;
+    }
+
+    ret = virCommandNew(prog);
+    virCommandAddArg(ret, "-dc");
+
+    switch (compression) {
+    case QEMUD_SAVE_FORMAT_LZOP:
+        virCommandAddArg(ret, "--ignore-warn");
+        break;
+    default:
+        break;
+    }
+
+    return ret;
+}
+
 /* Internal function to properly create or open existing files, with
  * ownership affected by qemu driver setup.  */
 static int
@@ -4966,30 +4993,20 @@ qemuDomainSaveImageStartVM(virConnectPtr conn,
     int intermediatefd = -1;
     virCommandPtr cmd = NULL;
 
-    if (header->version == 2) {
-        const char *prog = qemudSaveCompressionTypeToString(header->compressed);
-        if (prog == NULL) {
-            virReportError(VIR_ERR_OPERATION_FAILED,
-                           _("Invalid compressed save format %d"),
-                           header->compressed);
+    if ((header->version == 2) &&
+        (header->compressed != QEMUD_SAVE_FORMAT_RAW)) {
+        if (!(cmd = qemuCompressGetCommand(header->compressed)))
             goto out;
-        }
 
-        if (header->compressed != QEMUD_SAVE_FORMAT_RAW) {
-            cmd = virCommandNewArgList(prog, "-dc", NULL);
-            intermediatefd = *fd;
-            *fd = -1;
+        intermediatefd = *fd;
+        *fd = -1;
 
-            virCommandSetInputFD(cmd, intermediatefd);
-            virCommandSetOutputFD(cmd, fd);
+        virCommandSetInputFD(cmd, intermediatefd);
+        virCommandSetOutputFD(cmd, fd);
 
-            if (virCommandRunAsync(cmd, NULL) < 0) {
-                virReportError(VIR_ERR_INTERNAL_ERROR,
-                               _("Failed to start decompression binary %s"),
-                               prog);
-                *fd = intermediatefd;
-                goto out;
-            }
+        if (virCommandRunAsync(cmd, NULL) < 0) {
+            *fd = intermediatefd;
+            goto out;
         }
     }
 
