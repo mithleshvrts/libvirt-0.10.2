@@ -811,6 +811,7 @@ virLogParseDefaultPriority;
 virLogParseFilters;
 virLogParseOutputs;
 virLogPriorityFromSyslog;
+virLogProbablyLogMessage;
 virLogReset;
 virLogSetBufferSize;
 virLogSetDefaultPriority;

@@ -149,4 +149,7 @@ extern void virLogVMessage(const char *category, int priority,
                            va_list vargs) ATTRIBUTE_FMT_PRINTF(6, 0);
 extern int virLogSetBufferSize(int size);
 extern void virLogEmergencyDumpAll(int signum);
+
+bool virLogProbablyLogMessage(const char *str);
+
 #endif
