@@ -192,6 +192,11 @@ VIR_ENUM_IMPL(qemuCaps, QEMU_CAPS_LAST,
               "drive-mirror",
               "drive-reopen",
               "blockdev-snapshot-sync",
+              "qxl",
+              "VGA",
+              "cirrus-vga",
+              "vmware-svga",
+              "device-video-primary",
     );
 
 struct _qemuCaps {
@@ -1135,6 +1140,9 @@ qemuCapsComputeCmdFlags(const char *help,
 
     if (version >= 11000)
         qemuCapsSet(caps, QEMU_CAPS_CPU_HOST);
+
+    if (version >= 1002000)
+        qemuCapsSet(caps, QEMU_CAPS_DEVICE_VIDEO_PRIMARY);
     return 0;
 }
 
@@ -1280,11 +1288,14 @@ struct qemuCapsStringFlags qemuCapsObjectTypes[] = {
     { "virtio-scsi-pci", QEMU_CAPS_VIRTIO_SCSI_PCI },
     { "spicevmc", QEMU_CAPS_DEVICE_SPICEVMC },
     { "qxl-vga", QEMU_CAPS_DEVICE_QXL_VGA },
-    { "qxl", QEMU_CAPS_VGA_QXL },
+    { "qxl", QEMU_CAPS_DEVICE_QXL },
     { "sga", QEMU_CAPS_SGA },
     { "scsi-block", QEMU_CAPS_SCSI_BLOCK },
     { "scsi-cd", QEMU_CAPS_SCSI_CD },
     { "ide-cd", QEMU_CAPS_IDE_CD },
+    { "VGA", QEMU_CAPS_DEVICE_VGA },
+    { "cirrus-vga", QEMU_CAPS_DEVICE_CIRRUS_VGA },
+    { "vmware-svga", QEMU_CAPS_DEVICE_VMWARE_SVGA },
 };
 
 

@@ -158,6 +158,12 @@ enum qemuCapsFlags {
     QEMU_CAPS_DRIVE_MIRROR,             /* drive-mirror monitor command */
     QEMU_CAPS_DRIVE_REOPEN,             /* drive-reopen vs block-job-complete */
     QEMU_CAPS_DISK_SNAPSHOT,            /* blockdev-snapshot-sync command */
+    QEMU_CAPS_DEVICE_QXL,               /* -device qxl */
+    QEMU_CAPS_DEVICE_VGA,               /* -device VGA */
+    QEMU_CAPS_DEVICE_CIRRUS_VGA,        /* -device cirrus-vga */
+    QEMU_CAPS_DEVICE_VMWARE_SVGA,       /* -device vmware-svga */
+    QEMU_CAPS_DEVICE_VIDEO_PRIMARY,     /* safe to use -device XXX
+                                           for primary video device */
 
     QEMU_CAPS_LAST,                   /* this must always be the last item */
 };
