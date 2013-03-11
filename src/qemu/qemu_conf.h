@@ -207,12 +207,13 @@ void qemuDriverCloseCallbackRunAll(struct qemud_driver *driver,
                                    virConnectPtr conn);
 
 int qemuAddSharedDisk(virHashTablePtr sharedDisks,
-                      const char *disk_path)
+                      virDomainDiskDefPtr disk)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
 
 int qemuRemoveSharedDisk(virHashTablePtr sharedDisks,
-                         const char *disk_path)
+                         virDomainDiskDefPtr disk)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
+
 char * qemuGetSharedDiskKey(const char *disk_path)
     ATTRIBUTE_NONNULL(1);
 

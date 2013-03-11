@@ -3467,6 +3467,13 @@ qemuSetUnprivSGIO(virDomainDiskDefPtr disk)
 {
     int val = -1;
 
+    /* "sgio" is only valid for block disk; cdrom
+     * and floopy disk can have empty source.
+     */
+    if (disk->type != VIR_DOMAIN_DISK_TYPE_BLOCK ||
+        !disk->src)
+        return 0;
+
     if (disk->sgio)
         val = (disk->sgio == VIR_DOMAIN_DISK_SGIO_UNFILTERED);
 
@@ -3876,13 +3883,11 @@ int qemuProcessStart(virConnectPtr conn,
         if (vm->def->disks[i]->rawio == 1)
             virCommandAllowCap(cmd, CAP_SYS_RAWIO);
 
-        if (disk->type == VIR_DOMAIN_DISK_TYPE_BLOCK && disk->shared) {
-            if (qemuAddSharedDisk(driver->sharedDisks, disk->src) < 0)
-                goto cleanup;
+        if (qemuAddSharedDisk(driver->sharedDisks, disk) < 0)
+            goto cleanup;
 
-            if (qemuCheckSharedDisk(driver->sharedDisks, disk) < 0)
-                goto cleanup;
-        }
+        if (qemuCheckSharedDisk(driver->sharedDisks, disk) < 0)
+            goto cleanup;
 
         if (qemuSetUnprivSGIO(disk) < 0)
             goto cleanup;
@@ -4333,10 +4338,7 @@ void qemuProcessStop(struct qemud_driver *driver,
 
     for (i = 0; i < vm->def->ndisks; i++) {
         virDomainDiskDefPtr disk = vm->def->disks[i];
-
-        if (disk->type == VIR_DOMAIN_DISK_TYPE_BLOCK && disk->shared) {
-            ignore_value(qemuRemoveSharedDisk(driver->sharedDisks, disk->src));
-        }
+        ignore_value(qemuRemoveSharedDisk(driver->sharedDisks, disk));
     }
 
     /* Clear out dynamically assigned labels */

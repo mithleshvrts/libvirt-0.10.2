@@ -5990,11 +5990,9 @@ qemuDomainAttachDeviceDiskLive(virConnectPtr conn,
     }
 
     if (ret == 0) {
-        if (disk->type == VIR_DOMAIN_DISK_TYPE_BLOCK && disk->shared) {
-            if (qemuAddSharedDisk(driver->sharedDisks, disk->src) < 0)
-                VIR_WARN("Failed to add disk '%s' to shared disk table",
-                         disk->src);
-        }
+        if (qemuAddSharedDisk(driver->sharedDisks, disk) < 0)
+            VIR_WARN("Failed to add disk '%s' to shared disk table",
+                     disk->src);
 
         if (qemuSetUnprivSGIO(disk) < 0)
             VIR_WARN("Failed to set unpriv_sgio of disk '%s'", disk->src);
@@ -6116,10 +6114,8 @@ qemuDomainDetachDeviceDiskLive(struct qemud_driver *driver,
         break;
     }
 
-    if (ret == 0 &&
-        disk->type == VIR_DOMAIN_DISK_TYPE_BLOCK &&
-        disk->shared) {
-        if (qemuRemoveSharedDisk(driver->sharedDisks, disk->src) < 0)
+    if (ret == 0) {
+        if (qemuRemoveSharedDisk(driver->sharedDisks, disk) < 0)
              VIR_WARN("Failed to remove disk '%s' from shared disk table",
                       disk->src);
     }

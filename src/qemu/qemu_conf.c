@@ -774,28 +774,35 @@ qemuGetSharedDiskKey(const char *disk_path)
  */
 int
 qemuAddSharedDisk(virHashTablePtr sharedDisks,
-                  const char *disk_path)
+                  virDomainDiskDefPtr disk)
 {
     size_t *ref = NULL;
     char *key = NULL;
+    int ret = -1;
 
-    if (!(key = qemuGetSharedDiskKey(disk_path)))
-        return -1;
+    /* Currently the only conflicts we have to care about
+     * for the shared disk is "sgio" setting, which is only
+     * valid for block disk.
+     */
+    if (disk->type != VIR_DOMAIN_DISK_TYPE_BLOCK ||
+        !disk->shared || !disk->src)
+        return 0;
+
+    if (!(key = qemuGetSharedDiskKey(disk->src)))
+        goto cleanup;
 
     if ((ref = virHashLookup(sharedDisks, key))) {
-        if (virHashUpdateEntry(sharedDisks, key, ++ref) < 0) {
-             VIR_FREE(key);
-             return -1;
-        }
+        if (virHashUpdateEntry(sharedDisks, key, ++ref) < 0)
+            goto cleanup;
     } else {
-        if (virHashAddEntry(sharedDisks, key, (void *)0x1)) {
-            VIR_FREE(key);
-            return -1;
-        }
+        if (virHashAddEntry(sharedDisks, key, (void *)0x1))
+            goto cleanup;
     }
 
+    ret = 0;
+cleanup:
     VIR_FREE(key);
-    return 0;
+    return ret;
 }
 
 /* Decrease the ref count if the entry already exists, otherwise
@@ -803,31 +810,32 @@ qemuAddSharedDisk(virHashTablePtr sharedDisks,
  */
 int
 qemuRemoveSharedDisk(virHashTablePtr sharedDisks,
-                     const char *disk_path)
+                     virDomainDiskDefPtr disk)
 {
     size_t *ref = NULL;
     char *key = NULL;
+    int ret = -1;
 
-    if (!(key = qemuGetSharedDiskKey(disk_path)))
-        return -1;
+    if (disk->type != VIR_DOMAIN_DISK_TYPE_BLOCK ||
+        !disk->shared || !disk->src)
+        return 0;
 
-    if (!(ref = virHashLookup(sharedDisks, key))) {
-        VIR_FREE(key);
-        return -1;
-    }
+    if (!(key = qemuGetSharedDiskKey(disk->src)))
+        goto cleanup;
+
+    if (!(ref = virHashLookup(sharedDisks, key)))
+        goto cleanup;
 
     if (ref != (void *)0x1) {
-        if (virHashUpdateEntry(sharedDisks, key, --ref) < 0) {
-             VIR_FREE(key);
-             return -1;
-        }
+        if (virHashUpdateEntry(sharedDisks, key, --ref) < 0)
+            goto cleanup;
     } else {
-        if (virHashRemoveEntry(sharedDisks, key) < 0) {
-            VIR_FREE(key);
-            return -1;
-        }
+        if (virHashRemoveEntry(sharedDisks, key) < 0)
+            goto cleanup;
     }
 
+    ret = 0;
+cleanup:
     VIR_FREE(key);
-    return 0;
+    return ret;
 }
