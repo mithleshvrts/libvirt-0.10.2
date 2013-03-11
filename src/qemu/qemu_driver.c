@@ -5933,6 +5933,12 @@ qemuDomainAttachDeviceDiskLive(virConnectPtr conn,
         goto end;
     }
 
+    if (qemuAddSharedDisk(driver->sharedDisks, disk, vm->def->name) < 0)
+        goto end;
+
+    if (qemuSetUnprivSGIO(disk) < 0)
+        goto end;
+
     if (qemuDomainDetermineDiskChain(driver, disk, false) < 0)
         goto end;
 
@@ -5946,6 +5952,7 @@ qemuDomainAttachDeviceDiskLive(virConnectPtr conn,
         if (qemuSetupDiskCgroup(vm, cgroup, disk) < 0)
             goto end;
     }
+
     switch (disk->device)  {
     case VIR_DOMAIN_DISK_DEVICE_CDROM:
     case VIR_DOMAIN_DISK_DEVICE_FLOPPY:
@@ -5984,16 +5991,9 @@ qemuDomainAttachDeviceDiskLive(virConnectPtr conn,
                      NULLSTR(disk->src));
     }
 
-    if (ret == 0) {
-        if (qemuAddSharedDisk(driver->sharedDisks, disk, vm->def->name) < 0)
-            VIR_WARN("Failed to add disk '%s' to shared disk table",
-                     disk->src);
-
-        if (qemuSetUnprivSGIO(disk) < 0)
-            VIR_WARN("Failed to set unpriv_sgio of disk '%s'", disk->src);
-    }
-
 end:
+    if (ret != 0)
+        ignore_value(qemuRemoveSharedDisk(driver->sharedDisks, disk, vm->def->name));
     if (cgroup)
         virCgroupFree(&cgroup);
     return ret;
@@ -6109,11 +6109,8 @@ qemuDomainDetachDeviceDiskLive(struct qemud_driver *driver,
         break;
     }
 
-    if (ret == 0) {
-        if (qemuRemoveSharedDisk(driver->sharedDisks, disk, vm->def->name) < 0)
-             VIR_WARN("Failed to remove disk '%s' from shared disk table",
-                      disk->src);
-    }
+    if (ret == 0)
+        ignore_value(qemuRemoveSharedDisk(driver->sharedDisks, disk, vm->def->name));
 
     return ret;
 }
