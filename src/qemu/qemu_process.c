@@ -3833,7 +3833,7 @@ int qemuProcessStart(virConnectPtr conn,
         if (vm->def->disks[i]->rawio == 1)
             virCommandAllowCap(cmd, CAP_SYS_RAWIO);
 
-        if (qemuAddSharedDisk(driver->sharedDisks, disk) < 0)
+        if (qemuAddSharedDisk(driver->sharedDisks, disk, vm->def->name) < 0)
             goto cleanup;
 
         if (qemuSetUnprivSGIO(disk) < 0)
@@ -4285,7 +4285,7 @@ void qemuProcessStop(struct qemud_driver *driver,
 
     for (i = 0; i < vm->def->ndisks; i++) {
         virDomainDiskDefPtr disk = vm->def->disks[i];
-        ignore_value(qemuRemoveSharedDisk(driver->sharedDisks, disk));
+        ignore_value(qemuRemoveSharedDisk(driver->sharedDisks, disk, vm->def->name));
     }
 
     /* Clear out dynamically assigned labels */
