@@ -3204,6 +3204,7 @@ qemuProcessReconnect(void *opaque)
     struct qemuDomainJobObj oldjob;
     int state;
     int reason;
+    size_t i;
 
     memcpy(&oldjob, &data->oldjob, sizeof(oldjob));
 
@@ -3242,6 +3243,15 @@ qemuProcessReconnect(void *opaque)
 
     if (qemuUpdateActiveUsbHostdevs(driver, obj->def) < 0)
         goto error;
+
+    /* XXX: Need to change as long as lock is introduced for
+     * qemu_driver->sharedDisks.
+     */
+    for (i = 0; i < obj->def->ndisks; i++) {
+        if (qemuAddSharedDisk(driver->sharedDisks, obj->def->disks[i],
+                              obj->def->name) < 0)
+            goto error;
+    }
 
     if (qemuProcessUpdateState(driver, obj) < 0)
         goto error;
