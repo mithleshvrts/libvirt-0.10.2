@@ -351,6 +351,7 @@ virDomainDiskDefFree;
 virDomainDiskDeviceTypeToString;
 virDomainDiskErrorPolicyTypeFromString;
 virDomainDiskErrorPolicyTypeToString;
+virDomainDiskFindByBusAndDst;
 virDomainDiskFindControllerModel;
 virDomainDiskGeometryTransTypeFromString;
 virDomainDiskGeometryTransTypeToString;

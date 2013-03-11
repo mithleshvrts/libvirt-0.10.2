@@ -31,6 +31,7 @@
 int qemuDomainChangeEjectableMedia(struct qemud_driver *driver,
                                    virDomainObjPtr vm,
                                    virDomainDiskDefPtr disk,
+                                   virDomainDiskDefPtr orig_disk,
                                    bool force);
 int qemuDomainCheckEjectableMedia(struct qemud_driver *driver,
                                   virDomainObjPtr vm,
