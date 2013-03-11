@@ -100,7 +100,4 @@ virBitmapPtr qemuPrepareCpumap(struct qemud_driver *driver,
                                virBitmapPtr nodemask);
 int qemuSetUnprivSGIO(virDomainDiskDefPtr disk);
 
-int qemuCheckSharedDisk(virHashTablePtr sharedDisks,
-                        virDomainDiskDefPtr disk);
-
 #endif /* __QEMU_PROCESS_H__ */
