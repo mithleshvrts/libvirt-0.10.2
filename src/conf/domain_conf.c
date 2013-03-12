@@ -7255,9 +7255,11 @@ virDomainVideoDefParseXML(const xmlNodePtr node,
                 vram = virXMLPropString(cur, "vram");
                 heads = virXMLPropString(cur, "heads");
 
-                if ((primary = virXMLPropString(cur, "primary")) != NULL)
+                if ((primary = virXMLPropString(cur, "primary")) != NULL) {
                     if (STREQ(primary, "yes"))
                         def->primary = 1;
+                    VIR_FREE(primary);
+                }
 
                 def->accel = virDomainVideoAccelDefParseXML(cur);
             }
