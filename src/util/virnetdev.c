@@ -1219,6 +1219,26 @@ static struct nla_policy ifla_vf_policy[IFLA_VF_MAX+1] = {
                             .maxlen = sizeof(struct ifla_vf_vlan) },
 };
 
+/* The RHEL6.4 GA kernel incorrectly backported the netlink
+ * IFLA_EXT_MASK attribute from upstream by simply adding it at the
+ * end of the attributes in the anonymous "IFLA_*" enum in
+ * /usr/include/linux/if_link.h. Post-release, this error was
+ * corrected. Because of this, we must try our NLM_F_REQUEST first
+ * with an attribute using the proper upstream value, then (if that
+ * fails) with the incorrect value used in RHEL6.4GA, and finally if
+ * that fails we should retry with no IFLA_EXT_MASK attribute at all
+ * (which is what works for RHEL6.3, where IFLA_EXT_MASK isn't in
+ * the kernel at all).
+ */
+
+#define VIR_IFLA_EXT_MASK_RHEL64   26 /* erroneous value used in RHEL6.4 GA */
+#define VIR_IFLA_EXT_MASK_UPSTREAM 29 /* actual value in upstream if_link.h */
+
+/* Also define this locally so we can build even on systems with old
+ * kernel headers.
+ */
+ #define VIR_RTEXT_FILTER_VF (1 << 0)
+
 /**
  * virNetDevLinkDump:
  *
@@ -1251,6 +1271,8 @@ virNetDevLinkDump(const char *ifname, int ifindex,
         .ifi_family = AF_UNSPEC,
         .ifi_index  = ifindex
     };
+    int ifla_ext_mask_attr = VIR_IFLA_EXT_MASK_UPSTREAM;
+    uint32_t ifla_ext_mask_val = VIR_RTEXT_FILTER_VF;
     unsigned int recvbuflen;
     struct nl_msg *nl_msg;
 
@@ -1261,6 +1283,7 @@ virNetDevLinkDump(const char *ifname, int ifindex,
 
     ifinfo.ifi_index = ifindex;
 
+retry:
     nl_msg = nlmsg_alloc_simple(RTM_GETLINK, NLM_F_REQUEST);
     if (!nl_msg) {
         virReportOOMError();
@@ -1275,20 +1298,15 @@ virNetDevLinkDump(const char *ifname, int ifindex,
             goto buffer_too_small;
     }
 
-# ifdef RTEXT_FILTER_VF
     /* if this filter exists in the kernel's netlink implementation,
      * we need to set it, otherwise the response message will not
      * contain the IFLA_VFINFO_LIST that we're looking for.
      */
-    {
-        uint32_t ifla_ext_mask = RTEXT_FILTER_VF;
-
-        if (nla_put(nl_msg, IFLA_EXT_MASK,
-                    sizeof(ifla_ext_mask), &ifla_ext_mask) < 0) {
-            goto buffer_too_small;
-        }
+    if (ifla_ext_mask_attr &&
+        nla_put(nl_msg, ifla_ext_mask_attr,
+                sizeof(ifla_ext_mask_val), &ifla_ext_mask_val) < 0) {
+        goto buffer_too_small;
     }
-# endif
 
     if (virNetlinkCommand(nl_msg, recvbuf, &recvbuflen,
                           src_pid, dst_pid, NETLINK_ROUTE, 0) < 0)
@@ -1305,6 +1323,21 @@ virNetDevLinkDump(const char *ifname, int ifindex,
         if (resp->nlmsg_len < NLMSG_LENGTH(sizeof(*err)))
             goto malformed_resp;
 
+        if (-err->error == EINVAL && ifla_ext_mask_attr) {
+            /* If we had put an IFLA_EXT_MASK attribute into the
+             * request, EINVAL almost surely means that the value we
+             * used for IFLA_EXT_MASK didn't match what the kernel was
+             * looking for, so we cleanup, switch to the next
+             * possibility, and try again. The final time we will
+             * retry with no IFLA_EXT_MASK attribute at all (signaled
+             * by setting ifla_ext_mask_attr = 0).
+             */
+            VIR_FREE(*recvbuf);
+            nlmsg_free(nl_msg);
+            ifla_ext_mask_attr = (ifla_ext_mask_attr == VIR_IFLA_EXT_MASK_UPSTREAM
+                                  ? VIR_IFLA_EXT_MASK_RHEL64 : 0);
+            goto retry;
+        }
         if (err->error) {
             virReportSystemError(-err->error,
                                  _("error dumping %s (%d) interface"),
