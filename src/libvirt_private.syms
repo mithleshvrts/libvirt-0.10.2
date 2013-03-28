@@ -325,7 +325,9 @@ virDomainDefCompatibleDevice;
 virDomainDefFormat;
 virDomainDefFormatInternal;
 virDomainDefFree;
+virDomainDefGenSecurityLabelDef;
 virDomainDefGetSecurityLabelDef;
+virDomainDiskDefGenSecurityLabelDef;
 virDomainDiskDefGetSecurityLabelDef;
 virDomainDefAddSecurityLabelDef;
 virDomainDefParseFile;
@@ -545,6 +547,8 @@ virDomainWatchdogActionTypeFromString;
 virDomainWatchdogActionTypeToString;
 virDomainWatchdogModelTypeFromString;
 virDomainWatchdogModelTypeToString;
+virSecurityDeviceLabelDefFree;
+virSecurityLabelDefFree;
 
 
 # domain_event.h
