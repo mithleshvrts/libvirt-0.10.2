@@ -789,7 +789,8 @@ mymain(void)
             QEMU_CAPS_DEVICE_QXL,
             QEMU_CAPS_DEVICE_VGA,
             QEMU_CAPS_DEVICE_CIRRUS_VGA,
-            QEMU_CAPS_DEVICE_VMWARE_SVGA);
+            QEMU_CAPS_DEVICE_VMWARE_SVGA,
+            QEMU_CAPS_IPV6_MIGRATION);
     DO_TEST("qemu-1.2.0", 1002000, 0, 0,
             QEMU_CAPS_VNC_COLON,
             QEMU_CAPS_NO_REBOOT,
@@ -877,7 +878,8 @@ mymain(void)
             QEMU_CAPS_DEVICE_VGA,
             QEMU_CAPS_DEVICE_CIRRUS_VGA,
             QEMU_CAPS_DEVICE_VMWARE_SVGA,
-            QEMU_CAPS_DEVICE_VIDEO_PRIMARY);
+            QEMU_CAPS_DEVICE_VIDEO_PRIMARY,
+            QEMU_CAPS_IPV6_MIGRATION);
 
     return ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }

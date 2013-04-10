@@ -21,6 +21,8 @@
 
 #include <config.h>
 
+#include <netdb.h>
+#include <sys/socket.h>
 #include <sys/time.h>
 #include <gnutls/gnutls.h>
 #include <gnutls/x509.h>
@@ -1246,8 +1248,8 @@ qemuMigrationPrepareAny(struct qemud_driver *driver,
                         int *cookieoutlen,
                         const char *dname,
                         const char *dom_xml,
-                        const char *migrateFrom,
-                        virStreamPtr st)
+                        virStreamPtr st,
+                        unsigned int port)
 {
     virDomainDefPtr def = NULL;
     virDomainObjPtr vm = NULL;
@@ -1260,6 +1262,8 @@ qemuMigrationPrepareAny(struct qemud_driver *driver,
     bool tunnel = !!st;
     char *origname = NULL;
     char *xmlout = NULL;
+    const char *listenAddr = NULL;
+    char *migrateFrom = NULL;
 
     if (virTimeMillisNow(&now) < 0)
         return -1;
@@ -1319,6 +1323,45 @@ qemuMigrationPrepareAny(struct qemud_driver *driver,
                 virDomainDefFree(def);
                 def = newdef;
             }
+        }
+    }
+
+    if (tunnel) {
+        /* QEMU will be started with -incoming stdio
+         * (which qemu_command might convert to exec:cat or fd:n)
+         */
+        if (!(migrateFrom = strdup("stdio"))) {
+            virReportOOMError();
+            goto cleanup;
+        }
+    } else {
+        qemuCapsPtr caps = NULL;
+        struct addrinfo *info = NULL;
+        struct addrinfo hints = { .ai_flags = AI_ADDRCONFIG,
+                                  .ai_socktype = SOCK_STREAM };
+
+        if (!(caps = qemuCapsCacheLookupCopy(driver->capsCache,
+                                             def->emulator)))
+            goto cleanup;
+
+        /* Listen on :: instead of 0.0.0.0 if QEMU understands it
+         * and there is at least one IPv6 address configured
+         */
+        if (qemuCapsGet(caps, QEMU_CAPS_IPV6_MIGRATION) &&
+            getaddrinfo("::", NULL, &hints, &info) == 0) {
+            freeaddrinfo(info);
+            listenAddr = "[::]";
+        } else {
+            listenAddr = "0.0.0.0";
+        }
+        virObjectUnref(caps);
+
+        /* QEMU will be started with -incoming [::]:port
+         * or -incoming 0.0.0.0:port
+         */
+        if (virAsprintf(&migrateFrom, "tcp:%s:%d", listenAddr, port) < 0) {
+            virReportOOMError();
+            goto cleanup;
         }
     }
 
@@ -1419,6 +1462,7 @@ qemuMigrationPrepareAny(struct qemud_driver *driver,
     ret = 0;
 
 cleanup:
+    VIR_FREE(migrateFrom);
     VIR_FREE(origname);
     VIR_FREE(xmlout);
     virDomainDefFree(def);
@@ -1465,12 +1509,9 @@ qemuMigrationPrepareTunnel(struct qemud_driver *driver,
               driver, dconn, NULLSTR(cookiein), cookieinlen,
               cookieout, cookieoutlen, st, NULLSTR(dname), dom_xml);
 
-    /* QEMU will be started with -incoming stdio (which qemu_command might
-     * convert to exec:cat or fd:n)
-     */
     ret = qemuMigrationPrepareAny(driver, dconn, cookiein, cookieinlen,
                                   cookieout, cookieoutlen, dname, dom_xml,
-                                  "stdio", st);
+                                  st, 0);
     return ret;
 }
 
@@ -1490,9 +1531,10 @@ qemuMigrationPrepareDirect(struct qemud_driver *driver,
     static int port = 0;
     int this_port;
     char *hostname = NULL;
-    char migrateFrom [64];
     const char *p;
+    char *uri_str = NULL;
     int ret = -1;
+    virURIPtr uri;
 
     VIR_DEBUG("driver=%p, dconn=%p, cookiein=%s, cookieinlen=%d, "
               "cookieout=%p, cookieoutlen=%p, uri_in=%s, uri_out=%p, "
@@ -1541,16 +1583,39 @@ qemuMigrationPrepareDirect(struct qemud_driver *driver,
          * URI when passing it to the qemu monitor, so bad
          * characters in hostname part don't matter.
          */
-        if (!STRPREFIX (uri_in, "tcp:")) {
+        if (!(p = STRSKIP(uri_in, "tcp:"))) {
             virReportError(VIR_ERR_INVALID_ARG, "%s",
                            _("only tcp URIs are supported for KVM/QEMU"
                              " migrations"));
             goto cleanup;
         }
 
-        /* Get the port number. */
-        p = strrchr (uri_in, ':');
-        if (p == strchr(uri_in, ':')) {
+        /* Convert uri_in to well-formed URI with // after tcp: */
+        if (!(STRPREFIX(uri_in, "tcp://"))) {
+            if (virAsprintf(&uri_str, "tcp://%s", p) < 0) {
+                virReportOOMError();
+                goto cleanup;
+            }
+        }
+
+        uri = virURIParse(uri_str ? uri_str : uri_in);
+        VIR_FREE(uri_str);
+
+        if (uri == NULL) {
+            virReportError(VIR_ERR_INVALID_ARG, _("unable to parse URI: %s"),
+                           uri_in);
+            goto cleanup;
+        }
+
+        if (uri->server == NULL) {
+            virReportError(VIR_ERR_INVALID_ARG, _("missing host in migration"
+                                                  " URI: %s"), uri_in);
+            goto cleanup;
+        } else {
+            hostname = uri->server;
+        }
+
+        if (uri->port == 0) {
             /* Generate a port */
             this_port = QEMUD_MIGRATION_FIRST_PORT + port++;
             if (port == QEMUD_MIGRATION_NUM_PORTS)
@@ -1563,25 +1628,16 @@ qemuMigrationPrepareDirect(struct qemud_driver *driver,
             }
 
         } else {
-            p++; /* definitely has a ':' in it, see above */
-            this_port = virParseNumber (&p);
-            if (this_port == -1 || p-uri_in != strlen (uri_in)) {
-                virReportError(VIR_ERR_INVALID_ARG,
-                               "%s", _("URI ended with incorrect ':port'"));
-                goto cleanup;
-            }
+            this_port = uri->port;
         }
     }
 
     if (*uri_out)
         VIR_DEBUG("Generated uri_out=%s", *uri_out);
 
-    /* QEMU will be started with -incoming tcp:0.0.0.0:port */
-    snprintf(migrateFrom, sizeof(migrateFrom), "tcp:0.0.0.0:%d", this_port);
-
     ret = qemuMigrationPrepareAny(driver, dconn, cookiein, cookieinlen,
                                   cookieout, cookieoutlen, dname, dom_xml,
-                                  migrateFrom, NULL);
+                                  NULL, this_port);
 cleanup:
     VIR_FREE(hostname);
     if (ret != 0)

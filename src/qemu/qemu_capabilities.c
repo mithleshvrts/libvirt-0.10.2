@@ -197,6 +197,7 @@ VIR_ENUM_IMPL(qemuCaps, QEMU_CAPS_LAST,
               "cirrus-vga",
               "vmware-svga",
               "device-video-primary",
+              "ipv6-migration",
     );
 
 struct _qemuCaps {
@@ -1140,6 +1141,9 @@ qemuCapsComputeCmdFlags(const char *help,
 
     if (version >= 11000)
         qemuCapsSet(caps, QEMU_CAPS_CPU_HOST);
+
+    if (version >= 1001000)
+        qemuCapsSet(caps, QEMU_CAPS_IPV6_MIGRATION);
 
     if (version >= 1002000)
         qemuCapsSet(caps, QEMU_CAPS_DEVICE_VIDEO_PRIMARY);
