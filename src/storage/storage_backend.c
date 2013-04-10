@@ -673,7 +673,12 @@ virStorageBackendCreateQemuImg(virConnectPtr conn,
 
     virCheckFlags(0, -1);
 
-    const char *type = virStorageFileFormatTypeToString(vol->target.format);
+    /* Treat output block devices as 'raw' format */
+    const char *type =
+        virStorageFileFormatTypeToString(vol->type == VIR_STORAGE_VOL_BLOCK ?
+                                         VIR_STORAGE_FILE_RAW :
+                                         vol->target.format);
+
     const char *backingType = vol->backingStore.path ?
         virStorageFileFormatTypeToString(vol->backingStore.format) : NULL;
 
