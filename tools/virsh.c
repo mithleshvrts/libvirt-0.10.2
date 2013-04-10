@@ -354,6 +354,60 @@ vshReconnect(vshControl *ctl)
     ctl->useSnapshotOld = false;
 }
 
+
+/*
+ * "connect" command
+ */
+static const vshCmdInfo info_connect[] = {
+    {"help", N_("(re)connect to hypervisor")},
+    {"desc",
+     N_("Connect to local hypervisor. This is built-in command after shell start up.")},
+    {NULL, NULL}
+};
+
+static const vshCmdOptDef opts_connect[] = {
+    {"name",     VSH_OT_DATA, VSH_OFLAG_EMPTY_OK,
+     N_("hypervisor connection URI")},
+    {"readonly", VSH_OT_BOOL, 0, N_("read-only connection")},
+    {NULL, 0, 0, NULL}
+};
+
+static bool
+cmdConnect(vshControl *ctl, const vshCmd *cmd)
+{
+    bool ro = vshCommandOptBool(cmd, "readonly");
+    const char *name = NULL;
+
+    if (ctl->conn) {
+        int ret;
+        if ((ret = virConnectClose(ctl->conn)) != 0) {
+            vshError(ctl, _("Failed to disconnect from the hypervisor, %d leaked reference(s)"), ret);
+            return false;
+        }
+        ctl->conn = NULL;
+    }
+
+    VIR_FREE(ctl->name);
+    if (vshCommandOptString(cmd, "name", &name) < 0) {
+        vshError(ctl, "%s", _("Please specify valid connection URI"));
+        return false;
+    }
+    ctl->name = vshStrdup(ctl, name);
+
+    ctl->useGetInfo = false;
+    ctl->useSnapshotOld = false;
+    ctl->readonly = ro;
+
+    ctl->conn = virConnectOpenAuth(ctl->name, virConnectAuthPtrDefault,
+                                   ctl->readonly ? VIR_CONNECT_RO : 0);
+
+    if (!ctl->conn)
+        vshError(ctl, "%s", _("Failed to connect to the hypervisor"));
+
+    return !!ctl->conn;
+}
+
+
 #ifndef WIN32
 static void
 vshPrintRaw(vshControl *ctl, ...)
@@ -2923,6 +2977,8 @@ vshParseArgv(vshControl *ctl, int argc, char **argv)
 
 static const vshCmdDef virshCmds[] = {
     {"cd", cmdCd, opts_cd, info_cd, VSH_CMD_FLAG_NOCONNECT},
+    {"connect", cmdConnect, opts_connect, info_connect,
+     VSH_CMD_FLAG_NOCONNECT},
     {"echo", cmdEcho, opts_echo, info_echo, VSH_CMD_FLAG_NOCONNECT},
     {"exit", cmdQuit, NULL, info_quit, VSH_CMD_FLAG_NOCONNECT},
     {"help", cmdHelp, opts_help, info_help, VSH_CMD_FLAG_NOCONNECT},
