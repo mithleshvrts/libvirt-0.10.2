@@ -19690,6 +19690,8 @@ int virConnectRegisterCloseCallback(virConnectPtr conn,
         return -1;
     }
 
+    virObjectRef(conn);
+
     virMutexLock(&conn->lock);
 
     virCheckNonNullArgGoto(cb, error);
@@ -19710,6 +19712,7 @@ int virConnectRegisterCloseCallback(virConnectPtr conn,
 
 error:
     virMutexUnlock(&conn->lock);
+    virObjectUnref(conn);
     virDispatchError(NULL);
     return -1;
 }
@@ -19758,6 +19761,8 @@ int virConnectUnregisterCloseCallback(virConnectPtr conn,
     conn->closeOpaque = NULL;
 
     virMutexUnlock(&conn->lock);
+
+    virObjectUnref(conn);
 
     return 0;
 
