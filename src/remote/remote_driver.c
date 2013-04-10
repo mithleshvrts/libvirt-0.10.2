@@ -348,7 +348,8 @@ static void remoteClientCloseFunc(virNetClientPtr client ATTRIBUTE_UNUSED,
         closeCallback(conn, reason, closeOpaque);
         virMutexLock(&conn->lock);
         conn->closeDispatch = false;
-        if (conn->closeUnregisterCount != closeUnregisterCount)
+        if (conn->closeUnregisterCount != closeUnregisterCount &&
+            closeFreeCallback)
             closeFreeCallback(closeOpaque);
     }
     virMutexUnlock(&conn->lock);
