@@ -37,6 +37,7 @@
 
 
 virClassPtr virConnectClass;
+virClassPtr virConnectCloseCallbackDataClass;
 virClassPtr virDomainClass;
 virClassPtr virDomainSnapshotClass;
 virClassPtr virInterfaceClass;
@@ -49,6 +50,7 @@ virClassPtr virStorageVolClass;
 virClassPtr virStoragePoolClass;
 
 static void virConnectDispose(void *obj);
+static void virConnectCloseCallbackDataDispose(void *obj);
 static void virDomainDispose(void *obj);
 static void virDomainSnapshotDispose(void *obj);
 static void virInterfaceDispose(void *obj);
@@ -70,6 +72,7 @@ virDataTypesOnceInit(void)
         return -1;
 
     DECLARE_CLASS(virConnect);
+    DECLARE_CLASS(virConnectCloseCallbackData);
     DECLARE_CLASS(virDomain);
     DECLARE_CLASS(virDomainSnapshot);
     DECLARE_CLASS(virInterface);
@@ -111,7 +114,19 @@ virGetConnect(void)
         return NULL;
     }
 
+    if (!(ret->closeCallback = virObjectNew(virConnectCloseCallbackDataClass)))
+        goto error;
+
+    if (virMutexInit(&ret->closeCallback->lock) < 0) {
+        VIR_FREE(ret->closeCallback);
+        goto error;
+    }
+
     return ret;
+
+error:
+    virObjectUnref(ret);
+    return NULL;
 }
 
 /**
@@ -145,15 +160,39 @@ virConnectDispose(void *obj)
 
     virMutexLock(&conn->lock);
 
-    if (conn->closeFreeCallback)
-        conn->closeFreeCallback(conn->closeOpaque);
-
     virResetError(&conn->err);
 
     virURIFree(conn->uri);
 
+    virMutexLock(&conn->closeCallback->lock);
+    conn->closeCallback->callback = NULL;
+    virMutexUnlock(&conn->closeCallback->lock);
+
+    virObjectUnref(conn->closeCallback);
+
     virMutexUnlock(&conn->lock);
     virMutexDestroy(&conn->lock);
+}
+
+
+/**
+ * virConnectCloseCallbackDataDispose:
+ * @obj: the close callback data to release
+ *
+ * Release resources bound to the connection close callback.
+ */
+static void
+virConnectCloseCallbackDataDispose(void *obj)
+{
+    virConnectCloseCallbackDataPtr cb = obj;
+
+    virMutexLock(&cb->lock);
+
+    if (cb->freeCallback)
+        cb->freeCallback(cb->opaque);
+
+    virMutexUnlock(&cb->lock);
+    virMutexDestroy(&cb->lock);
 }
 
 
