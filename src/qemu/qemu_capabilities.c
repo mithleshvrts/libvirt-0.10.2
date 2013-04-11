@@ -1101,6 +1101,10 @@ qemuCapsComputeCmdFlags(const char *help,
                strstr(help, "libvirt")) {
         qemuCapsSet(caps, QEMU_CAPS_MONITOR_JSON);
         qemuCapsSet(caps, QEMU_CAPS_NETDEV);
+        /* IPv6 migration support was backported to RHEL qemu
+         * before dump-guest-core */
+        if (qemuCapsGet(caps, QEMU_CAPS_DUMP_GUEST_CORE))
+            qemuCapsSet(caps, QEMU_CAPS_IPV6_MIGRATION);
     }
 #else
     /* Starting with qemu 0.15 and newer, upstream qemu no longer
