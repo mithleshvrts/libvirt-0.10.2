@@ -4644,8 +4644,10 @@ qemuProcessAutoDestroy(struct qemud_driver *driver,
 
     if (!qemuDomainObjEndJob(driver, dom))
         dom = NULL;
-    if (dom && !dom->persistent)
+    if (dom && !dom->persistent) {
         qemuDomainRemoveInactive(driver, dom);
+        dom = NULL;
+    }
     if (event)
         qemuDomainEventQueue(driver, event);
 
