@@ -1697,21 +1697,6 @@ static void qemuProcessFreePtyPath(void *payload, const void *name ATTRIBUTE_UNU
     VIR_FREE(payload);
 }
 
-static void
-qemuProcessReadLogFD(int logfd, char *buf, int maxlen, int off)
-{
-    int ret;
-    char *tmpbuf = buf + off;
-
-    ret = saferead(logfd, tmpbuf, maxlen - off - 1);
-    if (ret < 0) {
-        ret = 0;
-    }
-
-    tmpbuf[ret] = '\0';
-}
-
-
 static int
 qemuProcessWaitForMonitor(struct qemud_driver* driver,
                           virDomainObjPtr vm,
@@ -1766,9 +1751,11 @@ cleanup:
     virHashFree(paths);
 
     if (pos != -1 && kill(vm->pid, 0) == -1 && errno == ESRCH) {
+        int len;
         /* VM is dead, any other error raised in the interim is probably
          * not as important as the qemu cmdline output */
-        qemuProcessReadLogFD(logfd, buf, buf_size, strlen(buf));
+        len = strlen(buf);
+        qemuProcessReadLog(logfd, buf + len, buf_size - len - 1, 0);
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("process exited while connecting to monitor: %s"),
                        buf);
