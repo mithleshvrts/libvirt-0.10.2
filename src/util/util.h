@@ -291,4 +291,8 @@ int virGetDeviceUnprivSGIO(const char *path,
 char * virGetUnprivSGIOSysfsPath(const char *path,
                                  const char *sysfs_dir);
 
+int virProcessSetMaxMemLock(pid_t pid, unsigned long long bytes);
+int virProcessSetMaxProcesses(pid_t pid, unsigned int procs);
+int virProcessSetMaxFiles(pid_t pid, unsigned int files);
+
 #endif /* __VIR_UTIL_H__ */

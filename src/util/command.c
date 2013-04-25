@@ -94,6 +94,10 @@ struct _virCommand {
     char *pidfile;
     bool reap;
 
+    unsigned long long maxMemLock;
+    unsigned int maxProcesses;
+    unsigned int maxFiles;
+
     unsigned long long capabilities;
 };
 
@@ -399,7 +403,10 @@ virExecWithHook(const char *const*argv,
                 virExecHook hook,
                 void *data,
                 char *pidfile,
-                unsigned long long capabilities)
+                unsigned long long capabilities,
+                unsigned long long maxMemLock,
+                unsigned int maxProcesses,
+                unsigned int maxFiles)
 {
     pid_t pid;
     int null = -1, i, openmax;
@@ -612,6 +619,13 @@ virExecWithHook(const char *const*argv,
             goto fork_error;
         }
 
+        if (virProcessSetMaxMemLock(0, maxMemLock) < 0)
+            goto fork_error;
+        if (virProcessSetMaxProcesses(0, maxProcesses) < 0)
+            goto fork_error;
+        if (virProcessSetMaxFiles(0, maxFiles) < 0)
+            goto fork_error;
+
         if ((hook)(data) != 0) {
             VIR_DEBUG("Hook function failed.");
             goto fork_error;
@@ -717,7 +731,10 @@ virExecWithHook(const char *const*argv ATTRIBUTE_UNUSED,
                 virExecHook hook ATTRIBUTE_UNUSED,
                 void *data ATTRIBUTE_UNUSED,
                 char *pidfile ATTRIBUTE_UNUSED,
-                unsigned long long capabilities ATTRIBUTE_UNUSED)
+                unsigned long long capabilities ATTRIBUTE_UNUSED,
+                unsigned long long maxMemLock ATTRIBUTE_UNUSED,
+                unsigned int maxProcesses ATTRIBUTE_UNUSED,
+                unsigned int maxFiles ATTRIBUTE_UNUSED)
 {
     /* XXX: Some day we can implement pieces of virCommand/virExec on
      * top of _spawn() or CreateProcess(), but we can't implement
@@ -916,6 +933,33 @@ virCommandSetPidFile(virCommandPtr cmd, const char *pidfile)
     }
 }
 
+
+void
+virCommandSetMaxMemLock(virCommandPtr cmd, unsigned long long bytes)
+{
+    if (!cmd || cmd->has_error)
+        return;
+
+    cmd->maxMemLock = bytes;
+}
+
+void
+virCommandSetMaxProcesses(virCommandPtr cmd, unsigned int procs)
+{
+    if (!cmd || cmd->has_error)
+        return;
+
+    cmd->maxProcesses = procs;
+}
+
+void
+virCommandSetMaxFiles(virCommandPtr cmd, unsigned int files)
+{
+    if (!cmd || cmd->has_error)
+        return;
+
+    cmd->maxFiles = files;
+}
 
 /**
  * virCommandClearCaps:
@@ -2221,7 +2265,10 @@ virCommandRunAsync(virCommandPtr cmd, pid_t *pid)
                           virCommandHook,
                           cmd,
                           cmd->pidfile,
-                          cmd->capabilities);
+                          cmd->capabilities,
+                          cmd->maxMemLock,
+                          cmd->maxProcesses,
+                          cmd->maxFiles);
 
     VIR_DEBUG("Command result %d, with PID %d",
               ret, (int)cmd->pid);
