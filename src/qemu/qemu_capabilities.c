@@ -199,6 +199,7 @@ VIR_ENUM_IMPL(qemuCaps, QEMU_CAPS_LAST,
               "device-video-primary",
               "ipv6-migration",
               "vnc-share-policy",
+              "mlock",
     );
 
 struct _qemuCaps {

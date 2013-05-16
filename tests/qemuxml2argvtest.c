@@ -853,6 +853,11 @@ mymain(void)
             QEMU_CAPS_DEVICE, QEMU_CAPS_DEVICE_VIDEO_PRIMARY,
             QEMU_CAPS_DEVICE_QXL, QEMU_CAPS_DEVICE_QXL_VGA);
 
+    DO_TEST("mlock-on", QEMU_CAPS_MLOCK);
+    DO_TEST_FAILURE("mlock-on", NONE);
+    DO_TEST("mlock-off", QEMU_CAPS_MLOCK);
+    DO_TEST("mlock-unsupported", NONE);
+
     VIR_FREE(driver.stateDir);
     virCapabilitiesFree(driver.caps);
     VIR_FREE(map);
