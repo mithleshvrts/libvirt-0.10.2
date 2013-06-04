@@ -147,8 +147,7 @@ cmdVolCreateAs(vshControl *ctl, const vshCmd *cmd)
     unsigned long long capacity, allocation = 0;
     virBuffer buf = VIR_BUFFER_INITIALIZER;
 
-    if (!(pool = vshCommandOptPoolBy(ctl, cmd, "pool", NULL,
-                                     VSH_BYNAME)))
+    if (!(pool = vshCommandOptPool(ctl, cmd, "pool", NULL)))
         return false;
 
     if (vshCommandOptString(cmd, "name", &name) <= 0)
@@ -299,8 +298,7 @@ cmdVolCreate(vshControl *ctl, const vshCmd *cmd)
     bool ret = true;
     char *buffer;
 
-    if (!(pool = vshCommandOptPoolBy(ctl, cmd, "pool", NULL,
-                                           VSH_BYNAME)))
+    if (!(pool = vshCommandOptPool(ctl, cmd, "pool", NULL)))
         return false;
 
     if (vshCommandOptString(cmd, "file", &from) <= 0) {
