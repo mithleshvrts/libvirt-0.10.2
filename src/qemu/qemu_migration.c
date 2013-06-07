@@ -1063,6 +1063,7 @@ qemuDomainMigrateGraphicsRelocate(struct qemud_driver *driver,
     qemuDomainObjPrivatePtr priv = vm->privateData;
     int ret;
     char *listenAddress;
+    virSocketAddr addr;
 
     if (!cookie)
         return 0;
@@ -1077,9 +1078,10 @@ qemuDomainMigrateGraphicsRelocate(struct qemud_driver *driver,
         return 0;
 
     listenAddress = cookie->graphics->listen;
+
     if (!listenAddress ||
-        STREQ(listenAddress, "0.0.0.0") ||
-        STREQ(listenAddress, "::"))
+        (virSocketAddrParse(&addr, listenAddress, AF_UNSPEC) > 0 &&
+         virSocketAddrIsWildcard(&addr)))
         listenAddress = cookie->remoteHostname;
 
     ret = qemuDomainObjEnterMonitorAsync(driver, vm,
