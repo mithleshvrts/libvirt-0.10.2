@@ -3760,6 +3760,15 @@ static int qemudDomainHotplugVcpus(struct qemud_driver *driver,
         goto cleanup;
     }
 
+    /* check if hotplug has failed */
+    if (vcpus < oldvcpus && ncpupids == oldvcpus) {
+        virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
+                       _("qemu didn't unplug the vCPUs properly"));
+        vcpus = oldvcpus;
+        ret = -1;
+        goto cleanup;
+    }
+
     if (ncpupids != vcpus) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("got wrong number of vCPU pids from QEMU monitor. "
