@@ -83,4 +83,15 @@ int qemuAgentArbitraryCommand(qemuAgentPtr mon,
                               const char *cmd,
                               char **result,
                               int timeout);
+
+typedef struct _qemuAgentCPUInfo qemuAgentCPUInfo;
+typedef qemuAgentCPUInfo *qemuAgentCPUInfoPtr;
+struct _qemuAgentCPUInfo {
+    unsigned int id;    /* logical cpu ID */
+    bool online;        /* true if the CPU is activated */
+    bool offlinable;    /* true if the CPU can be offlined */
+};
+
+int qemuAgentGetVCPUs(qemuAgentPtr mon, qemuAgentCPUInfoPtr *info);
+int qemuAgentSetVCPUs(qemuAgentPtr mon, qemuAgentCPUInfoPtr cpus, size_t ncpus);
 #endif /* __QEMU_AGENT_H__ */
