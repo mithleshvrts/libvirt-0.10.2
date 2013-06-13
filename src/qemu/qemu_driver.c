@@ -5615,6 +5615,7 @@ qemuDomainObjStart(virConnectPtr conn,
                                      managed_save);
                 goto cleanup;
             }
+            vm->hasManagedSave = false;
         } else {
             ret = qemuDomainObjRestore(conn, driver, vm, managed_save,
                                        start_paused, bypass_cache);
