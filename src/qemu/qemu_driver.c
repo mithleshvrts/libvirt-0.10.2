@@ -1789,7 +1789,7 @@ static int qemuDomainShutdownFlags(virDomainPtr dom, unsigned int flags) {
     virDomainObjPtr vm;
     int ret = -1;
     qemuDomainObjPrivatePtr priv;
-    bool useAgent = false;
+    bool useAgent = false, agentRequested, acpiRequested;
 
     virCheckFlags(VIR_DOMAIN_SHUTDOWN_ACPI_POWER_BTN |
                   VIR_DOMAIN_SHUTDOWN_GUEST_AGENT, -1);
@@ -1807,23 +1807,31 @@ static int qemuDomainShutdownFlags(virDomainPtr dom, unsigned int flags) {
     }
 
     priv = vm->privateData;
+    agentRequested = flags & VIR_DOMAIN_SHUTDOWN_GUEST_AGENT;
+    acpiRequested  = flags & VIR_DOMAIN_SHUTDOWN_ACPI_POWER_BTN;
 
-    if ((flags & VIR_DOMAIN_SHUTDOWN_GUEST_AGENT) ||
-        (!(flags & VIR_DOMAIN_SHUTDOWN_ACPI_POWER_BTN) &&
-         priv->agent))
+    /* Prefer agent unless we were requested to not to. */
+    if (agentRequested || (!flags && priv->agent))
         useAgent = true;
 
-    if (useAgent) {
-        if (priv->agentError) {
+    if (priv->agentError) {
+        if (agentRequested && !acpiRequested) {
             virReportError(VIR_ERR_AGENT_UNRESPONSIVE, "%s",
                            _("QEMU guest agent is not "
                              "available due to an error"));
             goto cleanup;
+        } else {
+            useAgent = false;
         }
-        if (!priv->agent) {
+    }
+
+    if (!priv->agent) {
+        if (agentRequested && !acpiRequested) {
             virReportError(VIR_ERR_ARGUMENT_UNSUPPORTED, "%s",
                            _("QEMU guest agent is not configured"));
             goto cleanup;
+        } else {
+            useAgent = false;
         }
     }
 
@@ -1840,7 +1848,13 @@ static int qemuDomainShutdownFlags(virDomainPtr dom, unsigned int flags) {
         qemuDomainObjEnterAgent(driver, vm);
         ret = qemuAgentShutdown(priv->agent, QEMU_AGENT_SHUTDOWN_POWERDOWN);
         qemuDomainObjExitAgent(driver, vm);
-    } else {
+    }
+
+    /* If we are not enforced to use just an agent, try ACPI
+     * shutdown as well in case agent did not succeed.
+     */
+    if (!useAgent ||
+        (ret < 0 && (acpiRequested || !flags))) {
         qemuDomainSetFakeReboot(driver, vm, false);
 
         qemuDomainObjEnterMonitor(driver, vm);
