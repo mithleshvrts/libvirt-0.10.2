@@ -617,6 +617,15 @@ doRemoteOpen(virConnectPtr conn,
 
     case trans_libssh2:
         if (!sockname) {
+            /* Right now we don't support default session connections */
+            if (STREQ(conn->uri->path, "/session")) {
+                virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
+                               _("Connecting to session instance without "
+                                 "socket path is not supported by the libssh2 "
+                                 "connection driver"));
+                goto failed;
+            }
+
             if (flags & VIR_DRV_OPEN_REMOTE_RO)
                 sockname = strdup(LIBVIRTD_PRIV_UNIX_SOCKET_RO);
             else
@@ -690,6 +699,15 @@ doRemoteOpen(virConnectPtr conn,
             goto no_memory;
 
         if (!sockname) {
+            /* Right now we don't support default session connections */
+            if (STREQ(conn->uri->path, "/session")) {
+                virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
+                               _("Connecting to session instance without "
+                                 "socket path is not supported by the ssh "
+                                 "connection driver"));
+                goto failed;
+            }
+
             if (flags & VIR_DRV_OPEN_REMOTE_RO)
                 sockname = strdup(LIBVIRTD_PRIV_UNIX_SOCKET_RO);
             else
