@@ -907,8 +907,6 @@ int virCgroupMoveTask(virCgroupPtr src_group, virCgroupPtr dest_group,
         VIR_FREE(content);
     }
 
-    return 0;
-
 cleanup:
     VIR_FREE(content);
 
