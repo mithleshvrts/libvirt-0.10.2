@@ -4855,6 +4855,7 @@ qemuBuildCommandLine(virConnectPtr conn,
     int spice = 0;
     int usbcontroller = 0;
     bool usblegacy = false;
+    bool mlock = false;
     uname_normalize(&ut);
     int contOrder[] = {
         /* We don't add an explicit IDE or FD controller because the
@@ -5028,6 +5029,7 @@ qemuBuildCommandLine(virConnectPtr conn,
         virCommandAddArgFormat(cmd, "mlock=%s",
                                def->mem.locked ? "on" : "off");
     }
+    mlock = def->mem.locked;
 
     virCommandAddArg(cmd, "-smp");
     if (!(smp = qemuBuildSmpArgStr(def, caps)))
@@ -6800,6 +6802,9 @@ qemuBuildCommandLine(virConnectPtr conn,
                        _("QEMU does not support seccomp sandboxes"));
         goto error;
     }
+
+    if (mlock)
+        virCommandSetMaxMemLock(cmd, qemuDomainMemoryLimit(def) * 1024);
 
     return cmd;
 
