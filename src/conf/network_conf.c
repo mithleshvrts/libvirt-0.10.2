@@ -1219,7 +1219,8 @@ virNetworkForwardNatDefParseXML(const char *networkName,
 {
     int ret = -1;
     xmlNodePtr *natAddrNodes = NULL;
-    int nNatAddrs;
+    xmlNodePtr *natPortNodes = NULL;
+    int nNatAddrs, nNatPorts;
     char *addrStart = NULL;
     char *addrEnd = NULL;
     xmlNodePtr save = ctxt->node;
@@ -1278,6 +1279,39 @@ virNetworkForwardNatDefParseXML(const char *networkName,
         goto cleanup;
     }
 
+    /* ports for SNAT and MASQUERADE */
+    nNatPorts = virXPathNodeSet("./port", ctxt, &natPortNodes);
+    if (nNatPorts < 0) {
+        virReportError(VIR_ERR_XML_ERROR,
+                       _("invalid <port> element found in <forward> of "
+                         "network %s"), networkName);
+        goto cleanup;
+    } else if (nNatPorts > 1) {
+        virReportError(VIR_ERR_XML_ERROR,
+                       _("Only one <port> element is allowed in <nat> in "
+                         "<forward> in network %s"), networkName);
+        goto cleanup;
+    } else if (nNatPorts == 1) {
+        if (virXPathUInt("string(./port[1]/@start)",
+                         ctxt, &def->forwardPortStart) < 0
+            || def->forwardPortStart > 65535) {
+
+            virReportError(VIR_ERR_XML_DETAIL,
+                           _("Missing or invalid 'start' attribute in <port> "
+                             "in <nat> in <forward> in network %s"),
+                             networkName);
+            goto cleanup;
+        }
+        if (virXPathUInt("string(./port[1]/@end)", ctxt,
+                         &def->forwardPortEnd) < 0
+            || def->forwardPortEnd > 65535
+            || def->forwardPortEnd < def->forwardPortStart) {
+            virReportError(VIR_ERR_XML_DETAIL,
+                           _("Missing or invalid 'end' attribute in <port> in "
+                             "<nat> in <forward> in network %s"), networkName);
+            goto cleanup;
+        }
+    }
     ret = 0;
 
 cleanup:
@@ -1948,16 +1982,26 @@ virNetworkForwardNatDefFormat(virBufferPtr buf,
             goto cleanup;
     }
 
-    if (!addrEnd && !addrStart)
+    if (!addrEnd && !addrStart &&
+        !def->forwardPortStart && !def->forwardPortEnd)
         return 0;
 
     virBufferAddLit(buf, "<nat>\n");
     virBufferAdjustIndent(buf, 2);
 
-    virBufferAsprintf(buf, "<address start='%s'", addrStart);
-    if (addrEnd)
-        virBufferAsprintf(buf, " end='%s'", addrEnd);
-    virBufferAddLit(buf, "/>\n");
+    if (addrStart) {
+        virBufferAsprintf(buf, "<address start='%s'", addrStart);
+        if (addrEnd)
+            virBufferAsprintf(buf, " end='%s'", addrEnd);
+        virBufferAddLit(buf, "/>\n");
+    }
+
+    if (def->forwardPortStart || def->forwardPortEnd) {
+        virBufferAsprintf(buf, "<port start='%d'", def->forwardPortStart);
+        if (def->forwardPortEnd)
+            virBufferAsprintf(buf, " end='%d'", def->forwardPortEnd);
+        virBufferAddLit(buf, "/>\n");
+    }
 
     virBufferAdjustIndent(buf, -2);
     virBufferAddLit(buf, "</nat>\n");
@@ -2011,7 +2055,9 @@ char *virNetworkDefFormat(const virNetworkDefPtr def, unsigned int flags)
         }
         shortforward = !(def->nForwardIfs || def->nForwardPfs
                          || VIR_SOCKET_ADDR_VALID(&def->forwardAddrStart)
-                         || VIR_SOCKET_ADDR_VALID(&def->forwardAddrEnd));
+                         || VIR_SOCKET_ADDR_VALID(&def->forwardAddrEnd)
+                         || def->forwardPortStart
+                         || def->forwardPortEnd);
         virBufferAsprintf(&buf, "%s>\n", shortforward ? "/" : "");
         virBufferAdjustIndent(&buf, 2);
 

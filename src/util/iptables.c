@@ -805,6 +805,8 @@ iptablesForwardMasquerade(iptablesContext *ctx,
                           const char *physdev,
                           virSocketAddr *addrStart,
                           virSocketAddr *addrEnd,
+                          unsigned int portStart,
+                          unsigned int portEnd,
                           const char *protocol,
                           int action)
 {
@@ -812,6 +814,7 @@ iptablesForwardMasquerade(iptablesContext *ctx,
     char *networkstr = NULL;
     char *addrStartStr = NULL;
     char *addrEndStr = NULL;
+    char *portRangeStr = NULL;
     char *natRangeStr = NULL;
     virCommandPtr cmd = NULL;
 
@@ -846,19 +849,34 @@ iptablesForwardMasquerade(iptablesContext *ctx,
     if (physdev && physdev[0])
         virCommandAddArgList(cmd, "--out-interface", physdev, NULL);
 
+    if (protocol && protocol[0]) {
+        if (portStart == 0 && portEnd == 0) {
+            portStart = 1024;
+            portEnd = 65535;
+        }
+
+        if (portStart < portEnd && portEnd < 65536) {
+            if (virAsprintf(&portRangeStr, ":%u-%u", portStart, portEnd) < 0) {
+                virReportOOMError();
+                goto cleanup;
+            }
+        } else {
+            virReportError(VIR_ERR_INTERNAL_ERROR,
+                           _("Invalid port range '%u-%u'."),
+                           portStart, portEnd);
+        }
+    }
+
     /* Use --jump SNAT if public addr is specified */
     if (addrStartStr && addrStartStr[0]) {
-        const char *portStr = "";
         int r = 0;
-
-        if (protocol && protocol[0])
-            portStr = ":1024-65535";
 
         if (addrEndStr && addrEndStr[0]) {
             r = virAsprintf(&natRangeStr, "%s-%s%s", addrStartStr, addrEndStr,
-                            portStr);
+                            portRangeStr ? portRangeStr : "");
         } else {
-            r = virAsprintf(&natRangeStr, "%s%s", addrStartStr, portStr);
+            r = virAsprintf(&natRangeStr, "%s%s", addrStartStr,
+                            portRangeStr ? portRangeStr : "");
         }
 
         if (r < 0) {
@@ -871,8 +889,8 @@ iptablesForwardMasquerade(iptablesContext *ctx,
      } else {
          virCommandAddArgList(cmd, "--jump", "MASQUERADE", NULL);
 
-         if (protocol && protocol[0])
-             virCommandAddArgList(cmd, "--to-ports", "1024-65535", NULL);
+         if (portRangeStr && portRangeStr[0])
+             virCommandAddArgList(cmd, "--to-ports", &portRangeStr[1], NULL);
      }
 
     ret = virCommandRun(cmd, NULL);
@@ -881,6 +899,7 @@ cleanup:
     VIR_FREE(networkstr);
     VIR_FREE(addrStartStr);
     VIR_FREE(addrEndStr);
+    VIR_FREE(portRangeStr);
     VIR_FREE(natRangeStr);
     return ret;
 }
@@ -905,9 +924,14 @@ iptablesAddForwardMasquerade(iptablesContext *ctx,
                              const char *physdev,
                              virSocketAddr *addrStart,
                              virSocketAddr *addrEnd,
+                             unsigned int portStart,
+                             unsigned int portEnd,
                              const char *protocol)
 {
-    return iptablesForwardMasquerade(ctx, netaddr, prefix, physdev, addrStart, addrEnd, protocol, ADD);
+    return iptablesForwardMasquerade(ctx, netaddr, prefix, physdev,
+                                     addrStart, addrEnd,
+                                     portStart, portEnd,
+                                     protocol, ADD);
 }
 
 /**
@@ -930,9 +954,14 @@ iptablesRemoveForwardMasquerade(iptablesContext *ctx,
                                 const char *physdev,
                                 virSocketAddr *addrStart,
                                 virSocketAddr *addrEnd,
+                                unsigned int portStart,
+                                unsigned int portEnd,
                                 const char *protocol)
 {
-    return iptablesForwardMasquerade(ctx, netaddr, prefix, physdev, addrStart, addrEnd, protocol, REMOVE);
+    return iptablesForwardMasquerade(ctx, netaddr, prefix, physdev,
+                                     addrStart, addrEnd,
+                                     portStart, portEnd,
+                                     protocol, REMOVE);
 }
 
 
