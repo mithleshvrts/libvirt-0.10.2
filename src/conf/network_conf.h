@@ -196,6 +196,9 @@ struct _virNetworkDef {
     size_t nForwardIfs;
     virNetworkForwardIfDefPtr forwardIfs;
 
+    /* adresses for SNAT */
+    virSocketAddr forwardAddrStart, forwardAddrEnd;
+
     size_t nips;
     virNetworkIpDefPtr ips; /* ptr to array of IP addresses on this network */
 

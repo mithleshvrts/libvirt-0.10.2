@@ -1211,6 +1211,83 @@ error:
     return result;
 }
 
+static int
+virNetworkForwardNatDefParseXML(const char *networkName,
+                                xmlNodePtr node,
+                                xmlXPathContextPtr ctxt,
+                                virNetworkDefPtr def)
+{
+    int ret = -1;
+    xmlNodePtr *natAddrNodes = NULL;
+    int nNatAddrs;
+    char *addrStart = NULL;
+    char *addrEnd = NULL;
+    xmlNodePtr save = ctxt->node;
+
+    ctxt->node = node;
+
+    if (def->forwardType != VIR_NETWORK_FORWARD_NAT) {
+        virReportError(VIR_ERR_XML_ERROR,
+                       _("The <nat> element can only be used when <forward> 'mode' is 'nat' in network %s"),
+                       networkName);
+        goto cleanup;
+    }
+
+    /* addresses for SNAT */
+    nNatAddrs = virXPathNodeSet("./address", ctxt, &natAddrNodes);
+    if (nNatAddrs < 0) {
+        virReportError(VIR_ERR_XML_ERROR,
+                       _("invalid <address> element found in <forward> of "
+                         "network %s"), networkName);
+        goto cleanup;
+    } else if (nNatAddrs > 1) {
+        virReportError(VIR_ERR_XML_ERROR,
+                       _("Only one <address> element is allowed in <nat> in "
+                         "<forward> in network %s"), networkName);
+        goto cleanup;
+    } else if (nNatAddrs == 1) {
+        addrStart = virXMLPropString(*natAddrNodes, "start");
+        if (addrStart == NULL) {
+            virReportError(VIR_ERR_XML_ERROR,
+                           _("missing 'start' attribute in <address> element in <nat> in "
+                             "<forward> in network %s"), networkName);
+            goto cleanup;
+        }
+        addrEnd = virXMLPropString(*natAddrNodes, "end");
+        if (addrEnd == NULL) {
+            virReportError(VIR_ERR_XML_ERROR,
+                           _("missing 'end' attribute in <address> element in <nat> in "
+                             "<forward> in network %s"), networkName);
+            goto cleanup;
+        }
+    }
+
+    if (addrStart && virSocketAddrParse(&def->forwardAddrStart,
+                                        addrStart, AF_INET) < 0) {
+        virReportError(VIR_ERR_XML_ERROR,
+                       _("Bad ipv4 start address '%s' in <nat> in <forward> in "
+                         "network '%s'"), addrStart, networkName);
+        goto cleanup;
+    }
+
+    if (addrEnd && virSocketAddrParse(&def->forwardAddrEnd,
+                                      addrEnd, AF_INET) < 0) {
+        virReportError(VIR_ERR_XML_ERROR,
+                       _("Bad ipv4 end address '%s' in <nat> in <forward> in "
+                         "network '%s'"), addrEnd, networkName);
+        goto cleanup;
+    }
+
+    ret = 0;
+
+cleanup:
+    VIR_FREE(addrStart);
+    VIR_FREE(addrEnd);
+    VIR_FREE(natAddrNodes);
+    ctxt->node = save;
+    return ret;
+}
+
 static virNetworkDefPtr
 virNetworkDefParseXML(xmlXPathContextPtr ctxt)
 {
@@ -1222,10 +1299,12 @@ virNetworkDefParseXML(xmlXPathContextPtr ctxt)
     xmlNodePtr *forwardIfNodes = NULL;
     xmlNodePtr *forwardPfNodes = NULL;
     xmlNodePtr *forwardAddrNodes = NULL;
+    xmlNodePtr *forwardNatNodes = NULL;
     xmlNodePtr dnsNode = NULL;
     xmlNodePtr virtPortNode = NULL;
     xmlNodePtr forwardNode = NULL;
     int nIps, nPortGroups, nForwardIfs, nForwardPfs, nForwardAddrs;
+    int nForwardNats;
     char *forwardDev = NULL;
     char *forwardManaged = NULL;
     char *type = NULL;
@@ -1530,12 +1609,31 @@ virNetworkDefParseXML(xmlXPathContextPtr ctxt)
                 def->nForwardIfs++;
             }
         }
+        nForwardNats = virXPathNodeSet("./nat", ctxt, &forwardNatNodes);
+        if (nForwardNats < 0) {
+            virReportError(VIR_ERR_XML_ERROR,
+                           _("invalid <nat> element found in <forward> of network %s"),
+                           def->name);
+            goto error;
+        } else if (nForwardNats > 1) {
+            virReportError(VIR_ERR_XML_ERROR,
+                           _("Only one <nat> element is allowed in <forward> of network %s"),
+                           def->name);
+            goto error;
+        } else if (nForwardNats == 1) {
+            if (virNetworkForwardNatDefParseXML(def->name,
+                                                *forwardNatNodes,
+                                                ctxt, def) < 0)
+                goto error;
+        }
+
         VIR_FREE(type);
         VIR_FREE(forwardDev);
         VIR_FREE(forwardManaged);
         VIR_FREE(forwardPfNodes);
         VIR_FREE(forwardIfNodes);
         VIR_FREE(forwardAddrNodes);
+        VIR_FREE(forwardNatNodes);
         switch (def->forwardType) {
         case VIR_NETWORK_FORWARD_ROUTE:
         case VIR_NETWORK_FORWARD_NAT:
@@ -1591,6 +1689,8 @@ virNetworkDefParseXML(xmlXPathContextPtr ctxt)
     VIR_FREE(portGroupNodes);
     VIR_FREE(forwardIfNodes);
     VIR_FREE(forwardPfNodes);
+    VIR_FREE(forwardAddrNodes);
+    VIR_FREE(forwardNatNodes);
     VIR_FREE(forwardDev);
     ctxt->node = save;
     return NULL;
@@ -1828,12 +1928,53 @@ virPortGroupDefFormat(virBufferPtr buf,
     return 0;
 }
 
+static int
+virNetworkForwardNatDefFormat(virBufferPtr buf,
+                              const virNetworkDefPtr def)
+{
+    char *addrStart = NULL;
+    char *addrEnd = NULL;
+    int ret = -1;
+
+    if (VIR_SOCKET_ADDR_VALID(&def->forwardAddrStart)) {
+        addrStart = virSocketAddrFormat(&def->forwardAddrStart);
+        if (!addrStart)
+            goto cleanup;
+    }
+
+    if (VIR_SOCKET_ADDR_VALID(&def->forwardAddrEnd)) {
+        addrEnd = virSocketAddrFormat(&def->forwardAddrEnd);
+        if (!addrEnd)
+            goto cleanup;
+    }
+
+    if (!addrEnd && !addrStart)
+        return 0;
+
+    virBufferAddLit(buf, "<nat>\n");
+    virBufferAdjustIndent(buf, 2);
+
+    virBufferAsprintf(buf, "<address start='%s'", addrStart);
+    if (addrEnd)
+        virBufferAsprintf(buf, " end='%s'", addrEnd);
+    virBufferAddLit(buf, "/>\n");
+
+    virBufferAdjustIndent(buf, -2);
+    virBufferAddLit(buf, "</nat>\n");
+    ret = 0;
+
+cleanup:
+    VIR_FREE(addrStart);
+    VIR_FREE(addrEnd);
+    return ret;
+}
+
 char *virNetworkDefFormat(const virNetworkDefPtr def, unsigned int flags)
 {
     virBuffer buf = VIR_BUFFER_INITIALIZER;
     unsigned char *uuid;
     char uuidstr[VIR_UUID_STRING_BUFLEN];
-    int ii;
+    int ii, shortforward;
 
     virBufferAddLit(&buf, "<network");
     if (!(flags & VIR_NETWORK_XML_INACTIVE) && (def->connections > 0)) {
@@ -1868,11 +2009,18 @@ char *virNetworkDefFormat(const virNetworkDefPtr def, unsigned int flags)
             else
                 virBufferAddLit(&buf, " managed='no'");
         }
-        virBufferAsprintf(&buf, "%s>\n",
-                          (def->nForwardIfs || def->nForwardPfs) ? "" : "/");
+        shortforward = !(def->nForwardIfs || def->nForwardPfs
+                         || VIR_SOCKET_ADDR_VALID(&def->forwardAddrStart)
+                         || VIR_SOCKET_ADDR_VALID(&def->forwardAddrEnd));
+        virBufferAsprintf(&buf, "%s>\n", shortforward ? "/" : "");
         virBufferAdjustIndent(&buf, 2);
 
-        /* For now, hard-coded to at most 1 forwardPfs */
+        if (def->forwardType == VIR_NETWORK_FORWARD_NAT) {
+            if (virNetworkForwardNatDefFormat(&buf, def) < 0)
+                goto error;
+        }
+
+        /* For now, hard-coded to at most 1 forward.pfs */
         if (def->nForwardPfs)
             virBufferEscapeString(&buf, "<pf dev='%s'/>\n",
                                   def->forwardPfs[0].dev);
@@ -1901,7 +2049,7 @@ char *virNetworkDefFormat(const virNetworkDefPtr def, unsigned int flags)
             }
         }
         virBufferAdjustIndent(&buf, -2);
-        if (def->nForwardPfs || def->nForwardIfs)
+        if (!shortforward)
             virBufferAddLit(&buf, "</forward>\n");
     }
 
