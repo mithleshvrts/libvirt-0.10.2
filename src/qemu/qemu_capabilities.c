@@ -198,6 +198,7 @@ VIR_ENUM_IMPL(qemuCaps, QEMU_CAPS_LAST,
               "vmware-svga",
               "device-video-primary",
               "ipv6-migration",
+              "vnc-share-policy",
     );
 
 struct _qemuCaps {
@@ -1103,8 +1104,10 @@ qemuCapsComputeCmdFlags(const char *help,
         qemuCapsSet(caps, QEMU_CAPS_NETDEV);
         /* IPv6 migration support was backported to RHEL qemu
          * before dump-guest-core */
-        if (qemuCapsGet(caps, QEMU_CAPS_DUMP_GUEST_CORE))
+        if (qemuCapsGet(caps, QEMU_CAPS_DUMP_GUEST_CORE)) {
             qemuCapsSet(caps, QEMU_CAPS_IPV6_MIGRATION);
+            qemuCapsSet(caps, QEMU_CAPS_VNC_SHARE_POLICY);
+        }
     }
 #else
     /* Starting with qemu 0.15 and newer, upstream qemu no longer
@@ -1146,8 +1149,10 @@ qemuCapsComputeCmdFlags(const char *help,
     if (version >= 11000)
         qemuCapsSet(caps, QEMU_CAPS_CPU_HOST);
 
-    if (version >= 1001000)
+    if (version >= 1001000) {
         qemuCapsSet(caps, QEMU_CAPS_IPV6_MIGRATION);
+        qemuCapsSet(caps, QEMU_CAPS_VNC_SHARE_POLICY);
+    }
 
     if (version >= 1002000)
         qemuCapsSet(caps, QEMU_CAPS_DEVICE_VIDEO_PRIMARY);

@@ -165,6 +165,7 @@ enum qemuCapsFlags {
     QEMU_CAPS_DEVICE_VIDEO_PRIMARY,     /* safe to use -device XXX
                                            for primary video device */
     QEMU_CAPS_IPV6_MIGRATION,           /* -incoming [::] */
+    QEMU_CAPS_VNC_SHARE_POLICY,         /* set display sharing policy */
 
     QEMU_CAPS_LAST,                   /* this must always be the last item */
 };
