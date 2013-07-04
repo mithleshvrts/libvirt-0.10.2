@@ -3667,6 +3667,7 @@ int qemuProcessStart(virConnectPtr conn,
                     virReportOOMError();
                     goto cleanup;
                 }
+                graphics->listens[0].fromConfig = true;
             }
         }
     }

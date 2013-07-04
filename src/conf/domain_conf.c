@@ -6313,6 +6313,8 @@ virDomainGraphicsListenDefParseXML(virDomainGraphicsListenDefPtr def,
     char *type     = virXMLPropString(node, "type");
     char *address  = virXMLPropString(node, "address");
     char *network  = virXMLPropString(node, "network");
+    char *fromConfig = virXMLPropString(node, "fromConfig");
+    int tmp;
 
     if (!type) {
         virReportError(VIR_ERR_XML_ERROR, "%s",
@@ -6349,6 +6351,17 @@ virDomainGraphicsListenDefParseXML(virDomainGraphicsListenDefPtr def,
         network = NULL;
     }
 
+    if (fromConfig &&
+        flags & VIR_DOMAIN_XML_INTERNAL_STATUS) {
+        if (virStrToLong_i(fromConfig, NULL, 10, &tmp) < 0) {
+            virReportError(VIR_ERR_XML_ERROR,
+                           _("Invalid fromConfig value: %s"),
+                           fromConfig);
+            goto error;
+        }
+        def->fromConfig = tmp != 0;
+    }
+
     ret = 0;
 error:
     if (ret < 0)
@@ -6356,6 +6369,7 @@ error:
     VIR_FREE(type);
     VIR_FREE(address);
     VIR_FREE(network);
+    VIR_FREE(fromConfig);
     return ret;
 }
 
@@ -13292,6 +13306,11 @@ virDomainGraphicsListenDefFormat(virBufferPtr buf,
                                  virDomainGraphicsListenDefPtr def,
                                  unsigned int flags)
 {
+    /* If generating migratable XML, skip listen address
+     * dragged in from config file */
+    if ((flags & VIR_DOMAIN_XML_MIGRATABLE) && def->fromConfig)
+        return;
+
     virBufferAddLit(buf, "      <listen");
 
     if (def->type) {
@@ -13312,6 +13331,9 @@ virDomainGraphicsListenDefFormat(virBufferPtr buf,
         (def->type == VIR_DOMAIN_GRAPHICS_LISTEN_TYPE_NETWORK)) {
         virBufferEscapeString(buf, " network='%s'", def->network);
     }
+
+    if (flags & VIR_DOMAIN_XML_INTERNAL_STATUS)
+        virBufferAsprintf(buf, " fromConfig='%d'", def->fromConfig);
 
     virBufferAddLit(buf, "/>\n");
 }
@@ -13339,6 +13361,9 @@ virDomainGraphicsDefFormat(virBufferPtr buf,
     for (i = 0; i < def->nListens; i++) {
         if (virDomainGraphicsListenGetType(def, i)
             == VIR_DOMAIN_GRAPHICS_LISTEN_TYPE_ADDRESS) {
+            if (flags & VIR_DOMAIN_XML_MIGRATABLE &&
+                def->listens[i].fromConfig)
+                continue;
             listenAddr = virDomainGraphicsListenGetAddress(def, i);
             break;
         }
@@ -13449,6 +13474,9 @@ virDomainGraphicsDefFormat(virBufferPtr buf,
     for (i = 0; i < def->nListens; i++) {
         if (virDomainGraphicsListenGetType(def, i)
             == VIR_DOMAIN_GRAPHICS_LISTEN_TYPE_NONE)
+            continue;
+        if (flags & VIR_DOMAIN_XML_MIGRATABLE &&
+            def->listens[i].fromConfig)
             continue;
         if (!children) {
             virBufferAddLit(buf, ">\n");
