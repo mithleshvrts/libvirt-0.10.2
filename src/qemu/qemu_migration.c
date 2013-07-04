@@ -2370,6 +2370,8 @@ static int doPeer2PeerMigrate2(struct qemud_driver *driver,
     virErrorPtr orig_err = NULL;
     int cancelled;
     virStreamPtr st = NULL;
+    unsigned int destflags = flags & ~VIR_MIGRATE_ABORT_ON_ERROR;
+
     VIR_DEBUG("driver=%p, sconn=%p, dconn=%p, vm=%p, dconnuri=%s, "
               "flags=%lx, dname=%s, resource=%lu",
               driver, sconn, dconn, vm, NULLSTR(dconnuri),
@@ -2399,13 +2401,13 @@ static int doPeer2PeerMigrate2(struct qemud_driver *driver,
 
         qemuDomainObjEnterRemoteWithDriver(driver, vm);
         ret = dconn->driver->domainMigratePrepareTunnel
-            (dconn, st, flags, dname, resource, dom_xml);
+            (dconn, st, destflags, dname, resource, dom_xml);
         qemuDomainObjExitRemoteWithDriver(driver, vm);
     } else {
         qemuDomainObjEnterRemoteWithDriver(driver, vm);
         ret = dconn->driver->domainMigratePrepare2
             (dconn, &cookie, &cookielen, NULL, &uri_out,
-             flags, dname, resource, dom_xml);
+             destflags, dname, resource, dom_xml);
         qemuDomainObjExitRemoteWithDriver(driver, vm);
     }
     VIR_FREE(dom_xml);
@@ -2463,7 +2465,7 @@ finish:
     qemuDomainObjEnterRemoteWithDriver(driver, vm);
     ddomain = dconn->driver->domainMigrateFinish2
         (dconn, dname, cookie, cookielen,
-         uri_out ? uri_out : dconnuri, flags, cancelled);
+         uri_out ? uri_out : dconnuri, destflags, cancelled);
     qemuDomainObjExitRemoteWithDriver(driver, vm);
 
 cleanup:
@@ -2513,6 +2515,8 @@ static int doPeer2PeerMigrate3(struct qemud_driver *driver,
     virErrorPtr orig_err = NULL;
     int cancelled;
     virStreamPtr st = NULL;
+    unsigned int destflags = flags & ~VIR_MIGRATE_ABORT_ON_ERROR;
+
     VIR_DEBUG("driver=%p, sconn=%p, dconn=%p, vm=%p, xmlin=%s, "
               "dconnuri=%s, uri=%s, flags=%lx, dname=%s, resource=%lu",
               driver, sconn, dconn, vm, NULLSTR(xmlin),
@@ -2545,13 +2549,13 @@ static int doPeer2PeerMigrate3(struct qemud_driver *driver,
         ret = dconn->driver->domainMigratePrepareTunnel3
             (dconn, st, cookiein, cookieinlen,
              &cookieout, &cookieoutlen,
-             flags, dname, resource, dom_xml);
+             destflags, dname, resource, dom_xml);
         qemuDomainObjExitRemoteWithDriver(driver, vm);
     } else {
         qemuDomainObjEnterRemoteWithDriver(driver, vm);
         ret = dconn->driver->domainMigratePrepare3
             (dconn, cookiein, cookieinlen, &cookieout, &cookieoutlen,
-             uri, &uri_out, flags, dname, resource, dom_xml);
+             uri, &uri_out, destflags, dname, resource, dom_xml);
         qemuDomainObjExitRemoteWithDriver(driver, vm);
     }
     VIR_FREE(dom_xml);
@@ -2619,7 +2623,7 @@ finish:
     qemuDomainObjEnterRemoteWithDriver(driver, vm);
     ddomain = dconn->driver->domainMigrateFinish3
         (dconn, dname, cookiein, cookieinlen, &cookieout, &cookieoutlen,
-         dconnuri, uri_out ? uri_out : uri, flags, cancelled);
+         dconnuri, uri_out ? uri_out : uri, destflags, cancelled);
     qemuDomainObjExitRemoteWithDriver(driver, vm);
 
     /* If ddomain is NULL, then we were unable to start

@@ -4524,6 +4524,8 @@ virDomainMigrateVersion1 (virDomainPtr domain,
     char *cookie = NULL;
     int cookielen = 0, ret;
     virDomainInfo info;
+    unsigned int destflags = flags & ~VIR_MIGRATE_ABORT_ON_ERROR;
+
     VIR_DOMAIN_DEBUG(domain,
                      "dconn=%p, flags=%lx, dname=%s, uri=%s, bandwidth=%lu",
                      dconn, flags, NULLSTR(dname), NULLSTR(uri), bandwidth);
@@ -4545,7 +4547,7 @@ virDomainMigrateVersion1 (virDomainPtr domain,
      * the URI, it should leave uri_out as NULL.
      */
     if (dconn->driver->domainMigratePrepare
-        (dconn, &cookie, &cookielen, uri, &uri_out, flags, dname,
+        (dconn, &cookie, &cookielen, uri, &uri_out, destflags, dname,
          bandwidth) == -1)
         goto done;
 
@@ -4572,7 +4574,7 @@ virDomainMigrateVersion1 (virDomainPtr domain,
     dname = dname ? dname : domain->name;
     if (dconn->driver->domainMigrateFinish)
         ddomain = dconn->driver->domainMigrateFinish
-            (dconn, dname, cookie, cookielen, uri, flags);
+            (dconn, dname, cookie, cookielen, uri, destflags);
     else
         ddomain = virDomainLookupByName (dconn, dname);
 
@@ -4618,6 +4620,8 @@ virDomainMigrateVersion2 (virDomainPtr domain,
     virErrorPtr orig_err = NULL;
     unsigned int getxml_flags = 0;
     int cancelled;
+    unsigned int destflags = flags & ~VIR_MIGRATE_ABORT_ON_ERROR;
+
     VIR_DOMAIN_DEBUG(domain,
                      "dconn=%p, flags=%lx, dname=%s, uri=%s, bandwidth=%lu",
                      dconn, flags, NULLSTR(dname), NULLSTR(uri), bandwidth);
@@ -4662,7 +4666,7 @@ virDomainMigrateVersion2 (virDomainPtr domain,
 
     VIR_DEBUG("Prepare2 %p flags=%lx", dconn, flags);
     ret = dconn->driver->domainMigratePrepare2
-        (dconn, &cookie, &cookielen, uri, &uri_out, flags, dname,
+        (dconn, &cookie, &cookielen, uri, &uri_out, destflags, dname,
          bandwidth, dom_xml);
     VIR_FREE (dom_xml);
     if (ret == -1)
@@ -4702,7 +4706,7 @@ finish:
     dname = dname ? dname : domain->name;
     VIR_DEBUG("Finish2 %p ret=%d", dconn, ret);
     ddomain = dconn->driver->domainMigrateFinish2
-        (dconn, dname, cookie, cookielen, uri, flags, cancelled);
+        (dconn, dname, cookie, cookielen, uri, destflags, cancelled);
 
  done:
     if (orig_err) {
@@ -4761,6 +4765,7 @@ virDomainMigrateVersion3(virDomainPtr domain,
     int cancelled = 1;
     unsigned long protection = 0;
     bool notify_source = true;
+    unsigned int destflags = flags & ~VIR_MIGRATE_ABORT_ON_ERROR;
 
     VIR_DOMAIN_DEBUG(domain, "dconn=%p xmlin=%s, flags=%lx, "
                      "dname=%s, uri=%s, bandwidth=%lu",
@@ -4800,7 +4805,7 @@ virDomainMigrateVersion3(virDomainPtr domain,
     cookieoutlen = 0;
     ret = dconn->driver->domainMigratePrepare3
         (dconn, cookiein, cookieinlen, &cookieout, &cookieoutlen,
-         uri, &uri_out, flags, dname, bandwidth, dom_xml);
+         uri, &uri_out, destflags, dname, bandwidth, dom_xml);
     VIR_FREE (dom_xml);
     if (ret == -1) {
         if (protection) {
@@ -4870,7 +4875,7 @@ finish:
     dname = dname ? dname : domain->name;
     ddomain = dconn->driver->domainMigrateFinish3
         (dconn, dname, cookiein, cookieinlen, &cookieout, &cookieoutlen,
-         NULL, uri, flags, cancelled);
+         NULL, uri, destflags, cancelled);
 
     /* If ddomain is NULL, then we were unable to start
      * the guest on the target, and must restart on the
