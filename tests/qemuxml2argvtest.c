@@ -541,6 +541,7 @@ mymain(void)
 
     DO_TEST("graphics-vnc", NONE);
     DO_TEST("graphics-vnc-socket", NONE);
+    DO_TEST("graphics-vnc-policy", QEMU_CAPS_VNC_SHARE_POLICY);
 
     driver.vncSASL = 1;
     driver.vncSASLdir = strdup("/root/.sasl2");

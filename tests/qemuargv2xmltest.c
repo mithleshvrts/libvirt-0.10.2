@@ -190,6 +190,7 @@ mymain(void)
     DO_TEST("disk-usb");
     DO_TEST("graphics-vnc");
     DO_TEST("graphics-vnc-socket");
+    DO_TEST("graphics-vnc-policy");
 
     driver.vncSASL = 1;
     driver.vncSASLdir = strdup("/root/.sasl2");
