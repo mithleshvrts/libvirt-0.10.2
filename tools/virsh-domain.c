@@ -6696,6 +6696,10 @@ static const vshCmdOptDef opts_migrate[] = {
     {"dname", VSH_OT_DATA, 0, N_("rename to new name during migration (if supported)")},
     {"timeout", VSH_OT_INT, 0, N_("force guest to suspend if live migration exceeds timeout (in seconds)")},
     {"xml", VSH_OT_STRING, 0, N_("filename containing updated XML for the target")},
+    {.name = "abort-on-error",
+     .type = VSH_OT_BOOL,
+     .help = N_("abort on soft errors during migration")
+    },
     {NULL, 0, 0, NULL}
 };
 
@@ -6761,6 +6765,9 @@ doMigrate(void *opaque)
 
     if (vshCommandOptBool(cmd, "unsafe"))
         flags |= VIR_MIGRATE_UNSAFE;
+
+    if (vshCommandOptBool(cmd, "abort-on-error"))
+        flags |= VIR_MIGRATE_ABORT_ON_ERROR;
 
     if (xmlfile &&
         virFileReadAll(xmlfile, 8192, &xml) < 0) {

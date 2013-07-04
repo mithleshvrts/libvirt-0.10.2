@@ -36,7 +36,8 @@
      VIR_MIGRATE_NON_SHARED_DISK |              \
      VIR_MIGRATE_NON_SHARED_INC |               \
      VIR_MIGRATE_CHANGE_PROTECTION |            \
-     VIR_MIGRATE_UNSAFE)
+     VIR_MIGRATE_UNSAFE |                       \
+     VIR_MIGRATE_ABORT_ON_ERROR)
 
 enum qemuMigrationJobPhase {
     QEMU_MIGRATION_PHASE_NONE = 0,
@@ -145,7 +146,8 @@ int qemuMigrationConfirm(struct qemud_driver *driver,
                          int retcode);
 
 bool qemuMigrationIsAllowed(struct qemud_driver *driver, virDomainObjPtr vm,
-                            virDomainDefPtr def, bool remote);
+                            virDomainDefPtr def, bool remote,
+                            bool abort_on_error);
 
 int qemuMigrationToFile(struct qemud_driver *driver, virDomainObjPtr vm,
                         int fd, off_t offset, const char *path,
