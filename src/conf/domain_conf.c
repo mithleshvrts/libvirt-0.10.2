@@ -462,6 +462,13 @@ VIR_ENUM_IMPL(virDomainGraphicsAuthConnected,
               "disconnect",
               "keep")
 
+VIR_ENUM_IMPL(virDomainGraphicsVNCSharePolicy,
+              VIR_DOMAIN_GRAPHICS_VNC_SHARE_LAST,
+              "default",
+              "allow-exclusive",
+              "force-shared",
+              "ignore")
+
 VIR_ENUM_IMPL(virDomainGraphicsSpiceChannelName,
               VIR_DOMAIN_GRAPHICS_SPICE_CHANNEL_LAST,
               "main",
@@ -6482,6 +6489,7 @@ virDomainGraphicsDefParseXML(xmlNodePtr node,
 
     if (def->type == VIR_DOMAIN_GRAPHICS_TYPE_VNC) {
         char *port = virXMLPropString(node, "port");
+        char *sharePolicy = virXMLPropString(node, "sharePolicy");
         char *autoport;
 
         if (port) {
@@ -6510,6 +6518,21 @@ virDomainGraphicsDefParseXML(xmlNodePtr node,
                 def->data.vnc.autoport = 1;
             }
             VIR_FREE(autoport);
+        }
+
+        if (sharePolicy) {
+            int policy =
+               virDomainGraphicsVNCSharePolicyTypeFromString(sharePolicy);
+
+            if (policy < 0) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                               _("unknown vnc display sharing policy '%s'"), sharePolicy);
+                VIR_FREE(sharePolicy);
+                goto error;
+            } else {
+                def->data.vnc.sharePolicy = policy;
+            }
+            VIR_FREE(sharePolicy);
         }
 
         def->data.vnc.socket = virXMLPropString(node, "socket");
@@ -13395,6 +13418,11 @@ virDomainGraphicsDefFormat(virBufferPtr buf,
         if (def->data.vnc.keymap)
             virBufferEscapeString(buf, " keymap='%s'",
                                   def->data.vnc.keymap);
+
+        if (def->data.vnc.sharePolicy)
+            virBufferAsprintf(buf, " sharePolicy='%s'",
+                              virDomainGraphicsVNCSharePolicyTypeToString(
+                              def->data.vnc.sharePolicy));
 
         virDomainGraphicsAuthDefFormatAttr(buf, &def->data.vnc.auth, flags);
         break;

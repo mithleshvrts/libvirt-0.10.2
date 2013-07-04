@@ -1133,6 +1133,15 @@ enum virDomainGraphicsType {
     VIR_DOMAIN_GRAPHICS_TYPE_LAST
 };
 
+enum virDomainGraphicsVNCSharePolicy {
+    VIR_DOMAIN_GRAPHICS_VNC_SHARE_DEFAULT = 0,
+    VIR_DOMAIN_GRAPHICS_VNC_SHARE_ALLOW_EXCLUSIVE,
+    VIR_DOMAIN_GRAPHICS_VNC_SHARE_FORCE_SHARED,
+    VIR_DOMAIN_GRAPHICS_VNC_SHARE_IGNORE,
+
+    VIR_DOMAIN_GRAPHICS_VNC_SHARE_LAST
+};
+
 enum virDomainGraphicsAuthConnectedType {
     VIR_DOMAIN_GRAPHICS_AUTH_CONNECTED_DEFAULT = 0,
     VIR_DOMAIN_GRAPHICS_AUTH_CONNECTED_FAIL,
@@ -1272,6 +1281,7 @@ struct _virDomainGraphicsDef {
             char *keymap;
             char *socket;
             virDomainGraphicsAuthDef auth;
+            int sharePolicy;
         } vnc;
         struct {
             char *display;
@@ -2268,6 +2278,7 @@ VIR_ENUM_DECL(virDomainGraphicsSpicePlaybackCompression)
 VIR_ENUM_DECL(virDomainGraphicsSpiceStreamingMode)
 VIR_ENUM_DECL(virDomainGraphicsSpiceClipboardCopypaste)
 VIR_ENUM_DECL(virDomainGraphicsSpiceMouseMode)
+VIR_ENUM_DECL(virDomainGraphicsVNCSharePolicy)
 VIR_ENUM_DECL(virDomainNumatuneMemMode)
 VIR_ENUM_DECL(virDomainNumatuneMemPlacementMode)
 VIR_ENUM_DECL(virDomainHyperv)
