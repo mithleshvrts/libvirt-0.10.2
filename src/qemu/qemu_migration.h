@@ -144,6 +144,8 @@ int qemuMigrationConfirm(struct qemud_driver *driver,
                          unsigned int flags,
                          int retcode);
 
+bool qemuMigrationIsAllowed(struct qemud_driver *driver, virDomainObjPtr vm,
+                            virDomainDefPtr def, bool remote);
 
 int qemuMigrationToFile(struct qemud_driver *driver, virDomainObjPtr vm,
                         int fd, off_t offset, const char *path,
