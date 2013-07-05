@@ -2912,7 +2912,7 @@ vshParseArgv(vshControl *ctl, int argc, char **argv)
     /* Standard (non-command) options. The leading + ensures that no
      * argument reordering takes place, so that command options are
      * not confused with top-level virsh options. */
-    while ((arg = getopt_long(argc, argv, "+d:hqtc:vVrl:e:", opt, NULL)) != -1) {
+    while ((arg = getopt_long(argc, argv, "+:d:hqtc:vVrl:e:", opt, NULL)) != -1) {
         switch (arg) {
         case 'd':
             if (virStrToLong_i(optarg, NULL, 10, &debug) < 0) {
@@ -2966,8 +2966,14 @@ vshParseArgv(vshControl *ctl, int argc, char **argv)
                 exit(EXIT_FAILURE);
             }
             break;
+        case ':':
+            vshError(ctl, _("option '-%c' requires an argument"), optopt);
+            exit(EXIT_FAILURE);
+        case '?':
+            vshError(ctl, _("unsupported option '-%c'. See --help."), optopt);
+            exit(EXIT_FAILURE);
         default:
-            vshError(ctl, _("unsupported option '-%c'. See --help."), arg);
+            vshError(ctl, _("unknown option"));
             exit(EXIT_FAILURE);
         }
     }
