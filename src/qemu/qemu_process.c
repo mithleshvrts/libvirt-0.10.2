@@ -2172,10 +2172,10 @@ qemuProcessInitPasswords(virConnectPtr conn,
                                                     &graphics->data.spice.auth,
                                                     driver->spicePassword);
         }
-    }
 
-    if (ret < 0)
-        goto cleanup;
+        if (ret < 0)
+            goto cleanup;
+    }
 
     if (qemuCapsGet(priv->caps, QEMU_CAPS_DEVICE)) {
         int i;
