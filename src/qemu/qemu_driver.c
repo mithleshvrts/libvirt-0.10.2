@@ -134,7 +134,11 @@
 
 #define QEMU_NB_BANDWIDTH_PARAM 6
 
-static void processWatchdogEvent(void *data, void *opaque);
+static void processWatchdogEvent(struct qemud_driver *driver,
+                                 virDomainObjPtr vm,
+                                 int action);
+
+static void qemuProcessEventHandler(void *data, void *opaque);
 
 static int qemudShutdown(void);
 
@@ -890,7 +894,7 @@ qemudStartup(int privileged) {
     virHashForEach(qemu_driver->domains.objs, qemuDomainManagedSaveLoad,
                    qemu_driver);
 
-    qemu_driver->workerPool = virThreadPoolNew(0, 1, 0, processWatchdogEvent, qemu_driver);
+    qemu_driver->workerPool = virThreadPoolNew(0, 1, 0, qemuProcessEventHandler, qemu_driver);
     if (!qemu_driver->workerPool)
         goto error;
 
@@ -3645,16 +3649,11 @@ cleanup:
     return ret;
 }
 
-static void processWatchdogEvent(void *data, void *opaque)
+static void processWatchdogEvent(struct qemud_driver *driver, virDomainObjPtr vm, int action)
 {
     int ret;
-    struct qemuDomainWatchdogEvent *wdEvent = data;
-    struct qemud_driver *driver = opaque;
 
-    qemuDriverLock(driver);
-    virDomainObjLock(wdEvent->vm);
-
-    switch (wdEvent->action) {
+    switch (action) {
     case VIR_DOMAIN_WATCHDOG_ACTION_DUMP:
         {
             char *dumpfile;
@@ -3662,19 +3661,19 @@ static void processWatchdogEvent(void *data, void *opaque)
 
             if (virAsprintf(&dumpfile, "%s/%s-%u",
                             driver->autoDumpPath,
-                            wdEvent->vm->def->name,
+                            vm->def->name,
                             (unsigned int)time(NULL)) < 0) {
                 virReportOOMError();
-                goto unlock;
+                goto cleanup;
             }
 
-            if (qemuDomainObjBeginAsyncJobWithDriver(driver, wdEvent->vm,
+            if (qemuDomainObjBeginAsyncJobWithDriver(driver, vm,
                                                      QEMU_ASYNC_JOB_DUMP) < 0) {
                 VIR_FREE(dumpfile);
-                goto unlock;
+                goto cleanup;
             }
 
-            if (!virDomainObjIsActive(wdEvent->vm)) {
+            if (!virDomainObjIsActive(vm)) {
                 virReportError(VIR_ERR_OPERATION_INVALID,
                                "%s", _("domain is not running"));
                 VIR_FREE(dumpfile);
@@ -3682,13 +3681,13 @@ static void processWatchdogEvent(void *data, void *opaque)
             }
 
             flags |= driver->autoDumpBypassCache ? VIR_DUMP_BYPASS_CACHE: 0;
-            ret = doCoreDump(driver, wdEvent->vm, dumpfile,
+            ret = doCoreDump(driver, vm, dumpfile,
                              getCompressionType(driver), flags);
             if (ret < 0)
                 virReportError(VIR_ERR_OPERATION_FAILED,
                                "%s", _("Dump failed"));
 
-            ret = qemuProcessStartCPUs(driver, wdEvent->vm, NULL,
+            ret = qemuProcessStartCPUs(driver, vm, NULL,
                                        VIR_DOMAIN_RUNNING_UNPAUSED,
                                        QEMU_ASYNC_JOB_DUMP);
 
@@ -3700,20 +3699,40 @@ static void processWatchdogEvent(void *data, void *opaque)
         }
         break;
     default:
-        goto unlock;
+        goto cleanup;
     }
 
 endjob:
     /* Safe to ignore value since ref count was incremented in
      * qemuProcessHandleWatchdog().
      */
-    ignore_value(qemuDomainObjEndAsyncJob(driver, wdEvent->vm));
+    ignore_value(qemuDomainObjEndAsyncJob(driver, vm));
 
-unlock:
-    virDomainObjUnlock(wdEvent->vm);
-    virObjectUnref(wdEvent->vm);
+cleanup:
+    ;
+}
+
+static void qemuProcessEventHandler(void *data, void *opaque)
+{
+    struct qemuProcessEvent *processEvent = data;
+    virDomainObjPtr vm = processEvent->vm;
+    struct qemud_driver *driver = opaque;
+
+    qemuDriverLock(driver);
+    virDomainObjLock(vm);
+
+    switch (processEvent->eventType) {
+    case QEMU_PROCESS_EVENT_WATCHDOG:
+        processWatchdogEvent(driver, vm, processEvent->action);
+        break;
+    default:
+       break;
+    }
+
+    virDomainObjUnlock(vm);
+    virObjectUnref(vm);
     qemuDriverUnlock(driver);
-    VIR_FREE(wdEvent);
+    VIR_FREE(processEvent);
 }
 
 static int qemudDomainHotplugVcpus(struct qemud_driver *driver,

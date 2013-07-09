@@ -162,9 +162,15 @@ struct _qemuDomainObjPrivate {
     size_t ncleanupCallbacks_max;
 };
 
-struct qemuDomainWatchdogEvent
-{
+typedef enum {
+    QEMU_PROCESS_EVENT_WATCHDOG = 0,
+
+    QEMU_PROCESS_EVENT_LAST
+} qemuProcessEventType;
+
+struct qemuProcessEvent {
     virDomainObjPtr vm;
+    qemuProcessEventType eventType;
     int action;
 };
 
