@@ -986,7 +986,7 @@ virNetDevGetVirtualFunctions(const char *pfname,
     int ret = -1, i;
     char *pf_sysfs_device_link = NULL;
     char *pci_sysfs_device_link = NULL;
-    char *pciConfigAddr;
+    char *pciConfigAddr = NULL;
 
     *virt_fns = NULL;
     *n_vfname = 0;
