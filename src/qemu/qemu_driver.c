@@ -3716,6 +3716,57 @@ cleanup:
     ;
 }
 
+static int
+doCoreDumpToAutoDumpPath(struct qemud_driver *driver,
+                         virDomainObjPtr vm,
+                         unsigned int flags)
+{
+    int ret = -1;
+    char *dumpfile = NULL;
+    time_t curtime = time(NULL);
+    char timestr[100];
+    struct tm time_info;
+
+    localtime_r(&curtime, &time_info);
+    strftime(timestr, sizeof(timestr), "%Y-%m-%d-%H:%M:%S", &time_info);
+
+    if (virAsprintf(&dumpfile, "%s/%s-%s",
+                    driver->autoDumpPath,
+                    vm->def->name,
+                    timestr) < 0) {
+        virReportOOMError();
+        goto cleanup;
+    }
+
+    if (qemuDomainObjBeginAsyncJob(driver, vm,
+                                   QEMU_ASYNC_JOB_DUMP) < 0) {
+        goto cleanup;
+    }
+
+    if (!virDomainObjIsActive(vm)) {
+        virReportError(VIR_ERR_OPERATION_INVALID,
+                       "%s", _("domain is not running"));
+        goto endjob;
+    }
+
+    flags |= driver->autoDumpBypassCache ? VIR_DUMP_BYPASS_CACHE: 0;
+    ret = doCoreDump(driver, vm, dumpfile,
+                     getCompressionType(driver), flags);
+    if (ret < 0)
+        virReportError(VIR_ERR_OPERATION_FAILED,
+                       "%s", _("Dump failed"));
+
+endjob:
+    /* Safe to ignore value since ref count was incremented in
+     * qemuProcessHandleGuestPanic().
+     */
+    ignore_value(qemuDomainObjEndAsyncJob(driver, vm));
+
+cleanup:
+    VIR_FREE(dumpfile);
+    return ret;
+}
+
 static void
 processGuestPanicEvent(struct qemud_driver *driver,
                        virDomainObjPtr vm,
@@ -3751,6 +3802,12 @@ processGuestPanicEvent(struct qemud_driver *driver,
      }
 
     switch (action) {
+    case VIR_DOMAIN_LIFECYCLE_CRASH_COREDUMP_DESTROY:
+        if (doCoreDumpToAutoDumpPath(driver, vm, VIR_DUMP_MEMORY_ONLY) < 0) {
+            goto cleanup;
+        }
+        /* fall through */
+
     case VIR_DOMAIN_LIFECYCLE_CRASH_DESTROY:
         priv->beingDestroyed = true;
 
@@ -3781,6 +3838,12 @@ processGuestPanicEvent(struct qemud_driver *driver,
             qemuDomainRemoveInactive(driver, vm);
         }
         break;
+
+    case VIR_DOMAIN_LIFECYCLE_CRASH_COREDUMP_RESTART:
+        if (doCoreDumpToAutoDumpPath(driver, vm, VIR_DUMP_MEMORY_ONLY) < 0) {
+            goto cleanup;
+        }
+        /* fall through */
 
     case VIR_DOMAIN_LIFECYCLE_CRASH_RESTART:
         qemuDomainSetFakeReboot(driver, vm, true);
