@@ -191,6 +191,8 @@ vshDomainStateReasonToString(int state, int reason)
             return N_("save canceled");
         case VIR_DOMAIN_RUNNING_WAKEUP:
             return N_("event wakeup");
+        case VIR_DOMAIN_RUNNING_CRASHED:
+            return N_("crashed");
         case VIR_DOMAIN_RUNNING_UNKNOWN:
         case VIR_DOMAIN_RUNNING_LAST:
             ;
@@ -225,6 +227,8 @@ vshDomainStateReasonToString(int state, int reason)
             return N_("shutting down");
         case VIR_DOMAIN_PAUSED_SNAPSHOT:
             return N_("creating snapshot");
+        case VIR_DOMAIN_PAUSED_GUEST_PANICKED:
+            return N_("guest panicked");
         case VIR_DOMAIN_PAUSED_UNKNOWN:
         case VIR_DOMAIN_PAUSED_LAST:
             ;
@@ -235,6 +239,8 @@ vshDomainStateReasonToString(int state, int reason)
         switch ((virDomainShutdownReason) reason) {
         case VIR_DOMAIN_SHUTDOWN_USER:
             return N_("user");
+        case VIR_DOMAIN_SHUTDOWN_CRASHED:
+            return N_("crashed");
         case VIR_DOMAIN_SHUTDOWN_UNKNOWN:
         case VIR_DOMAIN_SHUTDOWN_LAST:
             ;
@@ -265,6 +271,8 @@ vshDomainStateReasonToString(int state, int reason)
 
     case VIR_DOMAIN_CRASHED:
         switch ((virDomainCrashedReason) reason) {
+        case VIR_DOMAIN_CRASHED_PANICKED:
+            return N_("panicked");
         case VIR_DOMAIN_CRASHED_UNKNOWN:
         case VIR_DOMAIN_CRASHED_LAST:
             ;
