@@ -164,6 +164,7 @@ struct _qemuDomainObjPrivate {
 
 typedef enum {
     QEMU_PROCESS_EVENT_WATCHDOG = 0,
+    QEMU_PROCESS_EVENT_GUESTPANIC,
 
     QEMU_PROCESS_EVENT_LAST
 } qemuProcessEventType;
