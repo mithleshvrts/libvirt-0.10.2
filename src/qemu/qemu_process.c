@@ -618,7 +618,7 @@ cleanup:
 }
 
 
-static void
+void
 qemuProcessShutdownOrReboot(struct qemud_driver *driver,
                             virDomainObjPtr vm)
 {
