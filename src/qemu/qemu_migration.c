@@ -2370,7 +2370,7 @@ static int doPeer2PeerMigrate2(struct qemud_driver *driver,
     virErrorPtr orig_err = NULL;
     int cancelled;
     virStreamPtr st = NULL;
-    unsigned int destflags = flags & ~VIR_MIGRATE_ABORT_ON_ERROR;
+    unsigned long destflags;
 
     VIR_DEBUG("driver=%p, sconn=%p, dconn=%p, vm=%p, dconnuri=%s, "
               "flags=%lx, dname=%s, resource=%lu",
@@ -2388,6 +2388,8 @@ static int doPeer2PeerMigrate2(struct qemud_driver *driver,
 
     if (virDomainObjGetState(vm, NULL) == VIR_DOMAIN_PAUSED)
         flags |= VIR_MIGRATE_PAUSED;
+
+    destflags = flags & ~VIR_MIGRATE_ABORT_ON_ERROR;
 
     VIR_DEBUG("Prepare2 %p", dconn);
     if (flags & VIR_MIGRATE_TUNNELLED) {
@@ -2515,7 +2517,7 @@ static int doPeer2PeerMigrate3(struct qemud_driver *driver,
     virErrorPtr orig_err = NULL;
     int cancelled;
     virStreamPtr st = NULL;
-    unsigned int destflags = flags & ~VIR_MIGRATE_ABORT_ON_ERROR;
+    unsigned long destflags;
 
     VIR_DEBUG("driver=%p, sconn=%p, dconn=%p, vm=%p, xmlin=%s, "
               "dconnuri=%s, uri=%s, flags=%lx, dname=%s, resource=%lu",
@@ -2535,6 +2537,8 @@ static int doPeer2PeerMigrate3(struct qemud_driver *driver,
 
     if (virDomainObjGetState(vm, NULL) == VIR_DOMAIN_PAUSED)
         flags |= VIR_MIGRATE_PAUSED;
+
+    destflags = flags & ~VIR_MIGRATE_ABORT_ON_ERROR;
 
     VIR_DEBUG("Prepare3 %p", dconn);
     cookiein = cookieout;

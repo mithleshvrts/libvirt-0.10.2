@@ -4524,16 +4524,17 @@ virDomainMigrateVersion1 (virDomainPtr domain,
     char *cookie = NULL;
     int cookielen = 0, ret;
     virDomainInfo info;
-    unsigned int destflags = flags & ~VIR_MIGRATE_ABORT_ON_ERROR;
+    unsigned int destflags;
 
     VIR_DOMAIN_DEBUG(domain,
                      "dconn=%p, flags=%lx, dname=%s, uri=%s, bandwidth=%lu",
                      dconn, flags, NULLSTR(dname), NULLSTR(uri), bandwidth);
 
-    ret = virDomainGetInfo (domain, &info);
-    if (ret == 0 && info.state == VIR_DOMAIN_PAUSED) {
+    ret = virDomainGetInfo(domain, &info);
+    if (ret == 0 && info.state == VIR_DOMAIN_PAUSED)
         flags |= VIR_MIGRATE_PAUSED;
-    }
+
+    destflags = flags & ~VIR_MIGRATE_ABORT_ON_ERROR;
 
     /* Prepare the migration.
      *
@@ -4620,7 +4621,7 @@ virDomainMigrateVersion2 (virDomainPtr domain,
     virErrorPtr orig_err = NULL;
     unsigned int getxml_flags = 0;
     int cancelled;
-    unsigned int destflags = flags & ~VIR_MIGRATE_ABORT_ON_ERROR;
+    unsigned long destflags;
 
     VIR_DOMAIN_DEBUG(domain,
                      "dconn=%p, flags=%lx, dname=%s, uri=%s, bandwidth=%lu",
@@ -4659,12 +4660,13 @@ virDomainMigrateVersion2 (virDomainPtr domain,
     if (!dom_xml)
         return NULL;
 
-    ret = virDomainGetInfo (domain, &info);
-    if (ret == 0 && info.state == VIR_DOMAIN_PAUSED) {
+    ret = virDomainGetInfo(domain, &info);
+    if (ret == 0 && info.state == VIR_DOMAIN_PAUSED)
         flags |= VIR_MIGRATE_PAUSED;
-    }
 
-    VIR_DEBUG("Prepare2 %p flags=%lx", dconn, flags);
+    destflags = flags & ~VIR_MIGRATE_ABORT_ON_ERROR;
+
+    VIR_DEBUG("Prepare2 %p flags=%lx", dconn, destflags);
     ret = dconn->driver->domainMigratePrepare2
         (dconn, &cookie, &cookielen, uri, &uri_out, destflags, dname,
          bandwidth, dom_xml);
@@ -4765,7 +4767,7 @@ virDomainMigrateVersion3(virDomainPtr domain,
     int cancelled = 1;
     unsigned long protection = 0;
     bool notify_source = true;
-    unsigned int destflags = flags & ~VIR_MIGRATE_ABORT_ON_ERROR;
+    unsigned int destflags;
 
     VIR_DOMAIN_DEBUG(domain, "dconn=%p xmlin=%s, flags=%lx, "
                      "dname=%s, uri=%s, bandwidth=%lu",
@@ -4798,7 +4800,9 @@ virDomainMigrateVersion3(virDomainPtr domain,
         flags |= VIR_MIGRATE_PAUSED;
     }
 
-    VIR_DEBUG("Prepare3 %p flags=%lx", dconn, flags);
+    destflags = flags & ~VIR_MIGRATE_ABORT_ON_ERROR;
+
+    VIR_DEBUG("Prepare3 %p flags=%x", dconn, destflags);
     cookiein = cookieout;
     cookieinlen = cookieoutlen;
     cookieout = NULL;
