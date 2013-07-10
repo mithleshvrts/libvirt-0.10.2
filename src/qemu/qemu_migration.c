@@ -299,19 +299,22 @@ qemuMigrationCookieAddGraphics(qemuMigrationCookiePtr mig,
                                struct qemud_driver *driver,
                                virDomainObjPtr dom)
 {
+    size_t i = 0;
+
     if (mig->flags & QEMU_MIGRATION_COOKIE_GRAPHICS) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        _("Migration graphics data already present"));
         return -1;
     }
 
-    if (dom->def->ngraphics == 1 &&
-        (dom->def->graphics[0]->type == VIR_DOMAIN_GRAPHICS_TYPE_VNC ||
-         dom->def->graphics[0]->type == VIR_DOMAIN_GRAPHICS_TYPE_SPICE)) {
-        if (!(mig->graphics =
-              qemuMigrationCookieGraphicsAlloc(driver, dom->def->graphics[0])))
-            return -1;
-        mig->flags |= QEMU_MIGRATION_COOKIE_GRAPHICS;
+    for (i = 0; i < dom->def->ngraphics; i++) {
+       if (dom->def->graphics[i]->type == VIR_DOMAIN_GRAPHICS_TYPE_SPICE) {
+           if (!(mig->graphics =
+                 qemuMigrationCookieGraphicsAlloc(driver, dom->def->graphics[i])))
+               return -1;
+           mig->flags |= QEMU_MIGRATION_COOKIE_GRAPHICS;
+           break;
+       }
     }
 
     return 0;
@@ -929,13 +932,16 @@ qemuMigrationUpdateJobStatus(struct qemud_driver *driver,
     unsigned long long memProcessed;
     unsigned long long memRemaining;
     unsigned long long memTotal;
+    size_t i = 0;
 
-    /* If guest uses SPICE and supports seamles_migration we have to hold up
-     * migration finish until SPICE server transfers its data */
-    if (vm->def->ngraphics == 1 &&
-        vm->def->graphics[0]->type == VIR_DOMAIN_GRAPHICS_TYPE_SPICE &&
-        qemuCapsGet(priv->caps, QEMU_CAPS_SEAMLESS_MIGRATION))
-        wait_for_spice = true;
+    if (qemuCapsGet(priv->caps, QEMU_CAPS_SEAMLESS_MIGRATION)) {
+        for (i = 0; i < vm->def->ngraphics; i++) {
+            if (vm->def->graphics[i]->type == VIR_DOMAIN_GRAPHICS_TYPE_SPICE) {
+                wait_for_spice = true;
+                break;
+            }
+        }
+    }
 
     ret = qemuDomainObjEnterMonitorAsync(driver, vm, asyncJob);
     if (ret < 0) {
