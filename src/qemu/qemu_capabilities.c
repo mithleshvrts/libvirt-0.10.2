@@ -1054,6 +1054,9 @@ qemuCapsComputeCmdFlags(const char *help,
     if (strstr(help, "dump-guest-core=on|off"))
         qemuCapsSet(caps, QEMU_CAPS_DUMP_GUEST_CORE);
 
+    if (strstr(help, "mlock=on|off"))
+        qemuCapsSet(caps, QEMU_CAPS_MLOCK);
+
     /*
      * Handling of -incoming arg with varying features
      *  -incoming tcp    (kvm >= 79, qemu >= 0.10.0)
