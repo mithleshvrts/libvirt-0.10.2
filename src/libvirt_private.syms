@@ -1288,6 +1288,7 @@ virFindFileInPath;
 virGetDeviceID;
 virGetDeviceUnprivSGIO;
 virGetGroupID;
+virGetGroupList;
 virGetGroupName;
 virGetHostname;
 virGetUnprivSGIOSysfsPath;
