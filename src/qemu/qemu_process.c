@@ -2772,6 +2772,11 @@ static int qemuProcessHook(void *data)
     struct qemuProcessHookData *h = data;
     int ret = -1;
     int fd;
+    /* This method cannot use any mutexes, which are not
+     * protected across fork()
+     */
+
+    virSecurityManagerPostFork(h->driver->securityManager);
 
     /* Some later calls want pid present */
     h->vm->pid = getpid();
@@ -3899,7 +3904,9 @@ int qemuProcessStart(virConnectPtr conn,
     virCommandDaemonize(cmd);
     virCommandRequireHandshake(cmd);
 
+    virSecurityManagerPreFork(driver->securityManager);
     ret = virCommandRun(cmd, NULL);
+    virSecurityManagerPostFork(driver->securityManager);
 
     /* wait for qemu process to show up */
     if (ret == 0) {
