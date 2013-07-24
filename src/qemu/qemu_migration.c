@@ -942,11 +942,16 @@ qemuMigrationWaitForSpice(struct qemud_driver *driver,
     qemuDomainObjPrivatePtr priv = vm->privateData;
     bool wait_for_spice = false;
     bool spice_migrated = false;
+    size_t i = 0;
 
-    if (vm->def->ngraphics == 1 &&
-        vm->def->graphics[0]->type == VIR_DOMAIN_GRAPHICS_TYPE_SPICE &&
-        qemuCapsGet(priv->caps, QEMU_CAPS_SEAMLESS_MIGRATION))
-        wait_for_spice = true;
+    if (qemuCapsGet(priv->caps, QEMU_CAPS_SEAMLESS_MIGRATION)) {
+        for (i = 0; i < vm->def->ngraphics; i++) {
+            if (vm->def->graphics[i]->type == VIR_DOMAIN_GRAPHICS_TYPE_SPICE) {
+                wait_for_spice = true;
+                break;
+            }
+        }
+    }
 
     if (!wait_for_spice)
         return 0;

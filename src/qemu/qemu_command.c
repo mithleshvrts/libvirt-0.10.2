@@ -4634,17 +4634,16 @@ qemuBuildGraphicsCommandLine(struct qemud_driver *driver,
     if (graphics->type == VIR_DOMAIN_GRAPHICS_TYPE_VNC) {
         virBuffer opt = VIR_BUFFER_INITIALIZER;
 
-        if (def->graphics[0]->data.vnc.socket ||
+        if (graphics->data.vnc.socket ||
             driver->vncAutoUnixSocket) {
 
-            if (!def->graphics[0]->data.vnc.socket &&
-                virAsprintf(&def->graphics[0]->data.vnc.socket,
+            if (!graphics->data.vnc.socket &&
+                virAsprintf(&graphics->data.vnc.socket,
                             "%s/%s.vnc", driver->libDir, def->name) == -1) {
                 goto no_memory;
             }
 
-            virBufferAsprintf(&opt, "unix:%s",
-                              def->graphics[0]->data.vnc.socket);
+            virBufferAsprintf(&opt, "unix:%s", graphics->data.vnc.socket);
 
         } else if (qemuCapsGet(caps, QEMU_CAPS_VNC_COLON)) {
             const char *listenNetwork;
@@ -4653,13 +4652,13 @@ qemuBuildGraphicsCommandLine(struct qemud_driver *driver,
             bool escapeAddr;
             int ret;
 
-            switch (virDomainGraphicsListenGetType(def->graphics[0], 0)) {
+            switch (virDomainGraphicsListenGetType(graphics, 0)) {
             case VIR_DOMAIN_GRAPHICS_LISTEN_TYPE_ADDRESS:
-                listenAddr = virDomainGraphicsListenGetAddress(def->graphics[0], 0);
+                listenAddr = virDomainGraphicsListenGetAddress(graphics, 0);
                 break;
 
             case VIR_DOMAIN_GRAPHICS_LISTEN_TYPE_NETWORK:
-                listenNetwork = virDomainGraphicsListenGetNetwork(def->graphics[0], 0);
+                listenNetwork = virDomainGraphicsListenGetNetwork(graphics, 0);
                 if (!listenNetwork)
                     break;
                 ret = networkGetNetworkAddress(listenNetwork, &netAddr);
@@ -4678,7 +4677,7 @@ qemuBuildGraphicsCommandLine(struct qemud_driver *driver,
                 listenAddr = netAddr;
                 /* store the address we found in the <graphics> element so it will
                  * show up in status. */
-                if (virDomainGraphicsListenSetAddress(def->graphics[0], 0,
+                if (virDomainGraphicsListenSetAddress(graphics, 0,
                                                       listenAddr, -1, false) < 0)
                    goto error;
                 break;
@@ -4692,17 +4691,14 @@ qemuBuildGraphicsCommandLine(struct qemud_driver *driver,
                 virBufferAsprintf(&opt, "[%s]", listenAddr);
             else
                 virBufferAdd(&opt, listenAddr, -1);
-            virBufferAsprintf(&opt, ":%d",
-                              def->graphics[0]->data.vnc.port - 5900);
-
+            virBufferAsprintf(&opt, ":%d", graphics->data.vnc.port - 5900);
             VIR_FREE(netAddr);
         } else {
-            virBufferAsprintf(&opt, "%d",
-                              def->graphics[0]->data.vnc.port - 5900);
+            virBufferAsprintf(&opt, "%d", graphics->data.vnc.port - 5900);
         }
 
         if (qemuCapsGet(caps, QEMU_CAPS_VNC_COLON)) {
-            if (def->graphics[0]->data.vnc.sharePolicy) {
+            if (graphics->data.vnc.sharePolicy) {
                 if (!qemuCapsGet(caps, QEMU_CAPS_VNC_SHARE_POLICY)) {
                     virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                                    _("vnc display sharing policy is not "
@@ -4712,10 +4708,10 @@ qemuBuildGraphicsCommandLine(struct qemud_driver *driver,
 
                 virBufferAsprintf(&opt, ",share=%s",
                                   virDomainGraphicsVNCSharePolicyTypeToString(
-                                  def->graphics[0]->data.vnc.sharePolicy));
+                                  graphics->data.vnc.sharePolicy));
             }
 
-            if (def->graphics[0]->data.vnc.auth.passwd ||
+            if (graphics->data.vnc.auth.passwd ||
                 driver->vncPassword)
                 virBufferAddLit(&opt, ",password");
 
@@ -4743,8 +4739,8 @@ qemuBuildGraphicsCommandLine(struct qemud_driver *driver,
 
         virCommandAddArg(cmd, "-vnc");
         virCommandAddArgBuffer(cmd, &opt);
-        if (def->graphics[0]->data.vnc.keymap) {
-            virCommandAddArgList(cmd, "-k", def->graphics[0]->data.vnc.keymap,
+        if (graphics->data.vnc.keymap) {
+            virCommandAddArgList(cmd, "-k", graphics->data.vnc.keymap,
                                  NULL);
         }
 
@@ -4757,8 +4753,7 @@ qemuBuildGraphicsCommandLine(struct qemud_driver *driver,
         } else {
             virCommandAddEnvString(cmd, "QEMU_AUDIO_DRV=none");
         }
-    } else if ((def->ngraphics == 1) &&
-               def->graphics[0]->type == VIR_DOMAIN_GRAPHICS_TYPE_SDL) {
+    } else if (graphics->type == VIR_DOMAIN_GRAPHICS_TYPE_SDL) {
         if (qemuCapsGet(caps, QEMU_CAPS_0_10) &&
             !qemuCapsGet(caps, QEMU_CAPS_SDL)) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
@@ -4767,13 +4762,13 @@ qemuBuildGraphicsCommandLine(struct qemud_driver *driver,
             goto error;
         }
 
-        if (def->graphics[0]->data.sdl.xauth)
+        if (graphics->data.sdl.xauth)
             virCommandAddEnvPair(cmd, "XAUTHORITY",
-                                 def->graphics[0]->data.sdl.xauth);
-        if (def->graphics[0]->data.sdl.display)
+                                 graphics->data.sdl.xauth);
+        if (graphics->data.sdl.display)
             virCommandAddEnvPair(cmd, "DISPLAY",
-                                 def->graphics[0]->data.sdl.display);
-        if (def->graphics[0]->data.sdl.fullscreen)
+                                 graphics->data.sdl.display);
+        if (graphics->data.sdl.fullscreen)
             virCommandAddArg(cmd, "-full-screen");
 
         /* If using SDL for video, then we should just let it
@@ -4789,16 +4784,15 @@ qemuBuildGraphicsCommandLine(struct qemud_driver *driver,
         if (qemuCapsGet(caps, QEMU_CAPS_SDL))
             virCommandAddArg(cmd, "-sdl");
 
-    } else if ((def->ngraphics == 1) &&
-               def->graphics[0]->type == VIR_DOMAIN_GRAPHICS_TYPE_SPICE) {
+    } else if (graphics->type == VIR_DOMAIN_GRAPHICS_TYPE_SPICE) {
         virBuffer opt = VIR_BUFFER_INITIALIZER;
         const char *listenNetwork;
         const char *listenAddr = NULL;
         char *netAddr = NULL;
         int ret;
-        int defaultMode = def->graphics[0]->data.spice.defaultMode;
-        int port = def->graphics[0]->data.spice.port;
-        int tlsPort = def->graphics[0]->data.spice.tlsPort;
+        int defaultMode = graphics->data.spice.defaultMode;
+        int port = graphics->data.spice.port;
+        int tlsPort = graphics->data.spice.tlsPort;
 
         if (!qemuCapsGet(caps, QEMU_CAPS_SPICE)) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
@@ -4821,13 +4815,13 @@ qemuBuildGraphicsCommandLine(struct qemud_driver *driver,
             virBufferAsprintf(&opt, "tls-port=%u", tlsPort);
         }
 
-        switch (virDomainGraphicsListenGetType(def->graphics[0], 0)) {
+        switch (virDomainGraphicsListenGetType(graphics, 0)) {
         case VIR_DOMAIN_GRAPHICS_LISTEN_TYPE_ADDRESS:
-            listenAddr = virDomainGraphicsListenGetAddress(def->graphics[0], 0);
+            listenAddr = virDomainGraphicsListenGetAddress(graphics, 0);
             break;
 
         case VIR_DOMAIN_GRAPHICS_LISTEN_TYPE_NETWORK:
-            listenNetwork = virDomainGraphicsListenGetNetwork(def->graphics[0], 0);
+            listenNetwork = virDomainGraphicsListenGetNetwork(graphics, 0);
             if (!listenNetwork)
                 break;
             ret = networkGetNetworkAddress(listenNetwork, &netAddr);
@@ -4846,7 +4840,7 @@ qemuBuildGraphicsCommandLine(struct qemud_driver *driver,
             listenAddr = netAddr;
             /* store the address we found in the <graphics> element so it will
              * show up in status. */
-            if (virDomainGraphicsListenSetAddress(def->graphics[0], 0,
+            if (virDomainGraphicsListenSetAddress(graphics, 0,
                                                   listenAddr, -1, false) < 0)
                goto error;
             break;
@@ -4859,7 +4853,7 @@ qemuBuildGraphicsCommandLine(struct qemud_driver *driver,
 
         VIR_FREE(netAddr);
 
-        int mm = def->graphics[0]->data.spice.mousemode;
+        int mm = graphics->data.spice.mousemode;
         if (mm) {
             switch (mm) {
             case VIR_DOMAIN_GRAPHICS_SPICE_MOUSE_MODE_SERVER:
@@ -4876,7 +4870,7 @@ qemuBuildGraphicsCommandLine(struct qemud_driver *driver,
         /* In the password case we set it via monitor command, to avoid
          * making it visible on CLI, so there's no use of password=XXX
          * in this bit of the code */
-        if (!def->graphics[0]->data.spice.auth.passwd &&
+        if (!graphics->data.spice.auth.passwd &&
             !driver->spicePassword)
             virBufferAddLit(&opt, ",disable-ticketing");
 
@@ -4897,7 +4891,7 @@ qemuBuildGraphicsCommandLine(struct qemud_driver *driver,
         }
 
         for (i = 0 ; i < VIR_DOMAIN_GRAPHICS_SPICE_CHANNEL_LAST ; i++) {
-            int mode = def->graphics[0]->data.spice.channels[i];
+            int mode = graphics->data.spice.channels[i];
             switch (mode) {
             case VIR_DOMAIN_GRAPHICS_SPICE_CHANNEL_MODE_SECURE:
                 if (!driver->spiceTLS) {
@@ -4914,22 +4908,22 @@ qemuBuildGraphicsCommandLine(struct qemud_driver *driver,
                 break;
             }
         }
-        if (def->graphics[0]->data.spice.image)
+        if (graphics->data.spice.image)
             virBufferAsprintf(&opt, ",image-compression=%s",
-                              virDomainGraphicsSpiceImageCompressionTypeToString(def->graphics[0]->data.spice.image));
-        if (def->graphics[0]->data.spice.jpeg)
+                              virDomainGraphicsSpiceImageCompressionTypeToString(graphics->data.spice.image));
+        if (graphics->data.spice.jpeg)
             virBufferAsprintf(&opt, ",jpeg-wan-compression=%s",
-                              virDomainGraphicsSpiceJpegCompressionTypeToString(def->graphics[0]->data.spice.jpeg));
-        if (def->graphics[0]->data.spice.zlib)
+                              virDomainGraphicsSpiceJpegCompressionTypeToString(graphics->data.spice.jpeg));
+        if (graphics->data.spice.zlib)
             virBufferAsprintf(&opt, ",zlib-glz-wan-compression=%s",
-                              virDomainGraphicsSpiceZlibCompressionTypeToString(def->graphics[0]->data.spice.zlib));
-        if (def->graphics[0]->data.spice.playback)
+                              virDomainGraphicsSpiceZlibCompressionTypeToString(graphics->data.spice.zlib));
+        if (graphics->data.spice.playback)
             virBufferAsprintf(&opt, ",playback-compression=%s",
-                              virDomainGraphicsSpicePlaybackCompressionTypeToString(def->graphics[0]->data.spice.playback));
-        if (def->graphics[0]->data.spice.streaming)
+                              virDomainGraphicsSpicePlaybackCompressionTypeToString(graphics->data.spice.playback));
+        if (graphics->data.spice.streaming)
             virBufferAsprintf(&opt, ",streaming-video=%s",
-                              virDomainGraphicsSpiceStreamingModeTypeToString(def->graphics[0]->data.spice.streaming));
-        if (def->graphics[0]->data.spice.copypaste == VIR_DOMAIN_GRAPHICS_SPICE_CLIPBOARD_COPYPASTE_NO)
+                              virDomainGraphicsSpiceStreamingModeTypeToString(graphics->data.spice.streaming));
+        if (graphics->data.spice.copypaste == VIR_DOMAIN_GRAPHICS_SPICE_CLIPBOARD_COPYPASTE_NO)
             virBufferAddLit(&opt, ",disable-copy-paste");
 
         if (qemuCapsGet(caps, QEMU_CAPS_SEAMLESS_MIGRATION)) {
@@ -4942,18 +4936,18 @@ qemuBuildGraphicsCommandLine(struct qemud_driver *driver,
 
         virCommandAddArg(cmd, "-spice");
         virCommandAddArgBuffer(cmd, &opt);
-        if (def->graphics[0]->data.spice.keymap)
+        if (graphics->data.spice.keymap)
             virCommandAddArgList(cmd, "-k",
-                                 def->graphics[0]->data.spice.keymap, NULL);
+                                 graphics->data.spice.keymap, NULL);
         /* SPICE includes native support for tunnelling audio, so we
          * set the audio backend to point at SPICE's own driver
          */
         virCommandAddEnvString(cmd, "QEMU_AUDIO_DRV=spice");
 
-    } else if ((def->ngraphics == 1)) {
+    } else {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("unsupported graphics type '%s'"),
-                       virDomainGraphicsTypeToString(def->graphics[0]->type));
+                       virDomainGraphicsTypeToString(graphics->type));
         goto error;
     }
 
