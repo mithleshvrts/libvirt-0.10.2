@@ -2985,6 +2985,7 @@ qemuDomainSaveInternal(struct qemud_driver *driver, virDomainPtr dom,
 
     if (qemuDomainObjBeginAsyncJobWithDriver(driver, vm,
                                              QEMU_ASYNC_JOB_SAVE) < 0)
+        goto cleanup;
 
     memset(&priv->job.info, 0, sizeof(priv->job.info));
     priv->job.info.type = VIR_DOMAIN_JOB_UNBOUNDED;
