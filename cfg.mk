@@ -745,7 +745,7 @@ exclude_file_name_regexp--sc_avoid_strcase = ^tools/virsh\.h$$
 
 _src1=libvirt|fdstream|qemu/qemu_monitor|util/(command|util)|xen/xend_internal|rpc/virnetsocket|lxc/lxc_controller
 exclude_file_name_regexp--sc_avoid_write = \
-  ^(src/($(_src1))|daemon/libvirtd|tools/console|tests/(shunload|virnettlscontext)test)\.c$$
+  ^(src/($(_src1))|daemon/libvirtd|tools/console|tests/(shunload|virnettlscontext|virnettlssession)test)\.c$$
 
 exclude_file_name_regexp--sc_bindtextdomain = ^(tests|examples)/
 

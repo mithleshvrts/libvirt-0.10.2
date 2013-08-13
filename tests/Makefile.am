@@ -90,7 +90,7 @@ test_programs = virshtest sockettest \
 	commandtest seclabeltest \
 	virhashtest virnetmessagetest virnetsockettest \
 	viratomictest \
-	utiltest virnettlscontexttest shunloadtest \
+	utiltest virnettlscontexttest virnettlssessiontest shunloadtest \
 	virtimetest viruritest virkeyfiletest \
 	virauthconfigtest \
 	virbitmaptest virendiantest \
@@ -524,12 +524,22 @@ virnetsockettest_CFLAGS = -Dabs_builddir="\"$(abs_builddir)\"" $(AM_CFLAGS)
 virnetsockettest_LDADD = $(LDADDS)
 
 virnettlscontexttest_SOURCES = \
-	virnettlscontexttest.c testutils.h testutils.c
+	virnettlscontexttest.c \
+	virnettlshelpers.h virnettlshelpers.c \
+	testutils.h testutils.c
 virnettlscontexttest_CFLAGS = -Dabs_builddir="\"$(abs_builddir)\"" $(AM_CFLAGS)
 virnettlscontexttest_LDADD = $(LDADDS)
+virnettlssessiontest_SOURCES = \
+	virnettlssessiontest.c \
+	virnettlshelpers.h virnettlshelpers.c \
+	testutils.h testutils.c
+virnettlssessiontest_CFLAGS = -Dabs_builddir="\"$(abs_builddir)\"" $(AM_CFLAGS)
+virnettlssessiontest_LDADD = $(LDADDS)
 if HAVE_LIBTASN1
 virnettlscontexttest_SOURCES += pkix_asn1_tab.c
 virnettlscontexttest_LDADD += -ltasn1
+virnettlssessiontest_SOURCES += pkix_asn1_tab.c
+virnettlssessiontest_LDADD += -ltasn1
 else
 EXTRA_DIST += pkix_asn1_tab.c
 endif
