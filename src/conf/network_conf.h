@@ -104,6 +104,7 @@ struct _virNetworkDNSHostsDef {
 typedef struct _virNetworkDNSHostsDef *virNetworkDNSHostsDefPtr;
 
 struct _virNetworkDNSDef {
+    bool forwardPlainNames;
     unsigned int ntxtrecords;
     virNetworkDNSTxtRecordsDefPtr txtrecords;
     unsigned int nhosts;

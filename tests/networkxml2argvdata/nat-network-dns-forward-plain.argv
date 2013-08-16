@@ -1,0 +1,3 @@
+@DNSMASQ@ --strict-order --conf-file= \
+--except-interface lo --bind-dynamic --interface virbr0 \
+--addn-hosts=/var/lib/libvirt/dnsmasq/default.addnhosts\

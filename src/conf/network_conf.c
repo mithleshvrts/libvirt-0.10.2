@@ -935,19 +935,37 @@ cleanup:
 }
 
 static int
-virNetworkDNSDefParseXML(virNetworkDNSDefPtr *dnsdef,
+virNetworkDNSDefParseXML(const char *networkName,
                          xmlNodePtr node,
-                         xmlXPathContextPtr ctxt)
+                         xmlXPathContextPtr ctxt,
+                         virNetworkDNSDefPtr *dnsdef)
 {
     xmlNodePtr cur;
+    char *forwardPlainNames = NULL;
     int ret = -1;
+    xmlNodePtr save = ctxt->node;
     char *name = NULL;
     char *value = NULL;
     virNetworkDNSDefPtr def = NULL;
 
+    ctxt->node = node;
+
     if (VIR_ALLOC(def) < 0) {
         virReportOOMError();
         goto error;
+    }
+
+    forwardPlainNames = virXPathString("string(./@forwardPlainNames)", ctxt);
+    if (forwardPlainNames) {
+        if (STREQ(forwardPlainNames, "yes")) {
+            def->forwardPlainNames = true;
+        } else if (STRNEQ(forwardPlainNames, "no")) {
+            virReportError(VIR_ERR_XML_ERROR,
+                           _("Invalid dns forwardPlainNames setting '%s' "
+                             "in network '%s'"),
+                           forwardPlainNames, networkName);
+            goto error;
+        }
     }
 
     cur = node->children;
@@ -998,6 +1016,7 @@ virNetworkDNSDefParseXML(virNetworkDNSDefPtr *dnsdef,
 
     ret = 0;
 error:
+    VIR_FREE(forwardPlainNames);
     if (ret < 0) {
         VIR_FREE(name);
         VIR_FREE(value);
@@ -1005,6 +1024,7 @@ error:
     } else {
         *dnsdef = def;
     }
+    ctxt->node = save;
     return ret;
 }
 
@@ -1418,7 +1438,7 @@ virNetworkDefParseXML(xmlXPathContextPtr ctxt)
 
     dnsNode = virXPathNode("./dns", ctxt);
     if (dnsNode != NULL) {
-        if (virNetworkDNSDefParseXML(&def->dns, dnsNode, ctxt) < 0)
+        if (virNetworkDNSDefParseXML(def->name, dnsNode, ctxt, &def->dns) < 0)
             goto error;
     }
 
@@ -1795,7 +1815,16 @@ virNetworkDNSDefFormat(virBufferPtr buf,
     if (def == NULL)
         goto out;
 
-    virBufferAddLit(buf, "<dns>\n");
+    virBufferAddLit(buf, "<dns");
+    if (def->forwardPlainNames) {
+        virBufferAddLit(buf, " forwardPlainNames='yes'");
+        if (!(def->nhosts || def->nsrvrecords || def->ntxtrecords)) {
+            virBufferAddLit(buf, "/>\n");
+            goto out;
+        }
+    }
+
+    virBufferAddLit(buf, ">\n");
     virBufferAdjustIndent(buf, 2);
 
     for (i = 0 ; i < def->ntxtrecords ; i++) {
