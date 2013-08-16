@@ -382,6 +382,38 @@ error:
     return -1;
 }
 
+
+/* test out of bounds conditions on virBitmapParse */
+static int
+test9(const void *opaque ATTRIBUTE_UNUSED)
+{
+    int ret = -1;
+    virBitmapPtr bitmap;
+
+    if (virBitmapParse("100000000", 0, &bitmap, 20) != -1)
+        goto cleanup;
+
+    if (bitmap)
+        goto cleanup;
+
+    if (virBitmapParse("1-1000000000", 0, &bitmap, 20) != -1)
+        goto cleanup;
+
+    if (bitmap)
+        goto cleanup;
+
+    if (virBitmapParse("1-10^10000000000", 0, &bitmap, 20) != -1)
+        goto cleanup;
+
+    if (bitmap)
+        goto cleanup;
+
+    ret = 0;
+cleanup:
+    return ret;
+
+}
+
 static int
 mymain(void)
 {
@@ -401,7 +433,8 @@ mymain(void)
         ret = -1;
     if (virtTestRun("test7", 1, test7, NULL) < 0)
         ret = -1;
-
+    if (virtTestRun("test9", 1, test9, NULL) < 0)
+        ret = -1;
 
     return ret;
 }
