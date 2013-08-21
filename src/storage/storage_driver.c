@@ -1494,6 +1494,7 @@ storageVolumeCreateXMLFrom(virStoragePoolPtr obj,
     virStorageBackendPtr backend;
     virStorageVolDefPtr origvol = NULL, newvol = NULL;
     virStorageVolPtr ret = NULL, volobj = NULL;
+    unsigned long long allocation;
     int buildret;
 
     virCheckFlags(0, NULL);
@@ -1615,6 +1616,7 @@ storageVolumeCreateXMLFrom(virStoragePoolPtr obj,
 
     origvol->building = 0;
     newvol->building = 0;
+    allocation = newvol->allocation;
     newvol = NULL;
     pool->asyncjobs--;
 
@@ -1632,8 +1634,8 @@ storageVolumeCreateXMLFrom(virStoragePoolPtr obj,
     }
 
     /* Updating pool metadata */
-    pool->def->allocation += newvol->allocation;
-    pool->def->available -= newvol->allocation;
+    pool->def->allocation += allocation;
+    pool->def->available -= allocation;
 
     VIR_INFO("Creating volume '%s' in storage pool '%s'",
              volobj->name, pool->def->name);
