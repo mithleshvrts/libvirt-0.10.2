@@ -1477,7 +1477,7 @@ storageVolumeCreateXML(virStoragePoolPtr obj,
 cleanup:
     virObjectUnref(volobj);
     virStorageVolDefFree(voldef);
-    virStorageVolDefFree(buildvoldef);
+    VIR_FREE(buildvoldef);
     if (pool)
         virStoragePoolObjUnlock(pool);
     return ret;
