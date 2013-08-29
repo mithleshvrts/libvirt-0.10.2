@@ -868,6 +868,8 @@ cleanup:
                                virDomainNetGetActualBridgeName(net), net->ifname));
         }
 
+        virDomainNetRemoveHostdev(vm->def, net);
+
         networkReleaseActualDevice(net);
     }
 
@@ -1661,6 +1663,9 @@ qemuDomainChangeNet(struct qemud_driver *driver,
         /* the changes above warrant replacing olddev with newdev in
          * the domain's nets list.
          */
+
+        /* this function doesn't work with HOSTDEV networks yet, thus
+         * no need to change the pointer in the hostdev structure */
         networkReleaseActualDevice(olddev);
         virDomainNetDefFree(olddev);
         /* move newdev into the nets list, and NULL it out from the

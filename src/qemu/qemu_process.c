@@ -4383,6 +4383,8 @@ void qemuProcessStop(struct qemud_driver *driver,
                                        virDomainNetGetActualBridgeName(net),
                                        net->ifname));
 
+        /* kick the device out of the hostdev list too */
+        virDomainNetRemoveHostdev(def, net);
         networkReleaseActualDevice(net);
     }
 

@@ -469,6 +469,7 @@ virDomainNetGetActualVirtPortProfile;
 virDomainNetGetActualVlan;
 virDomainNetInsert;
 virDomainNetRemove;
+virDomainNetRemoveHostdev;
 virDomainNetTypeToString;
 virDomainNostateReasonTypeFromString;
 virDomainNostateReasonTypeToString;
