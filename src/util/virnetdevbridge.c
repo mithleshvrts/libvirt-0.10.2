@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2012 Red Hat, Inc.
+ * Copyright (C) 2007-2013 Red Hat, Inc.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -32,11 +32,27 @@
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <net/if.h>
+#include <netinet/in.h>
 
 #ifdef __linux__
 # include <linux/sockios.h>
 # include <linux/param.h>     /* HZ                 */
+/* Depending on the version of kernel vs. glibc, there may be a collision
+ * between <net/in.h> and kernel IPv6 structures.  The different types
+ * are ABI compatible, but choke the C type system; work around it by
+ * using temporary redefinitions.  */
+# define in6_addr in6_addr_
+# define sockaddr_in6 sockaddr_in6_
+# define ipv6_mreq ipv6_mreq_
+# define in6addr_any in6addr_any_
+# define in6addr_loopback in6addr_loopback_
+# include <linux/in6.h>
 # include <linux/if_bridge.h> /* SYSFS_BRIDGE_ATTR  */
+# undef in6_addr
+# undef sockaddr_in6
+# undef ipv6_mreq
+# undef in6addr_any
+# undef in6addr_loopback
 
 # define JIFFIES_TO_MS(j) (((j)*1000)/HZ)
 # define MS_TO_JIFFIES(ms) (((ms)*HZ)/1000)
