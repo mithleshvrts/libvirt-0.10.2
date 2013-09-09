@@ -1600,8 +1600,11 @@ static virDomainPtr qemudDomainCreate(virConnectPtr conn, const char *xml,
 
     def = NULL;
 
-    if (qemuDomainObjBeginJobWithDriver(driver, vm, QEMU_JOB_MODIFY) < 0)
-        goto cleanup; /* XXXX free the 'vm' we created ? */
+    if (qemuDomainObjBeginJobWithDriver(driver, vm, QEMU_JOB_MODIFY) < 0) {
+        qemuDomainRemoveInactive(driver, vm);
+        vm = NULL;
+        goto cleanup;
+    }
 
     if (qemuProcessStart(conn, driver, vm, NULL, -1, NULL, NULL,
                          VIR_NETDEV_VPORT_PROFILE_OP_CREATE,
@@ -1629,10 +1632,10 @@ static virDomainPtr qemudDomainCreate(virConnectPtr conn, const char *xml,
     virDomainAuditStart(vm, "booted", true);
 
     dom = virGetDomain(conn, vm->def->name, vm->def->uuid);
-    if (dom) dom->id = vm->def->id;
+    if (dom)
+        dom->id = vm->def->id;
 
-    if (vm &&
-        qemuDomainObjEndJob(driver, vm) == 0)
+    if (qemuDomainObjEndJob(driver, vm) == 0)
         vm = NULL;
 
 cleanup:
@@ -13230,32 +13233,36 @@ static virDomainPtr qemuDomainAttach(virConnectPtr conn,
 
     def = NULL;
 
-    if (qemuDomainObjBeginJobWithDriver(driver, vm, QEMU_JOB_MODIFY) < 0)
+    if (qemuDomainObjBeginJobWithDriver(driver, vm, QEMU_JOB_MODIFY) < 0) {
+        qemuDomainRemoveInactive(driver, vm);
+        vm = NULL;
         goto cleanup;
+    }
 
     if (qemuProcessAttach(conn, driver, vm, pid,
                           pidfile, monConfig, monJSON) < 0) {
+        if (qemuDomainObjEndJob(driver, vm) > 0)
+            qemuDomainRemoveInactive(driver, vm);
+        vm = NULL;
         monConfig = NULL;
-        goto endjob;
+        goto cleanup;
     }
 
     monConfig = NULL;
 
     dom = virGetDomain(conn, vm->def->name, vm->def->uuid);
-    if (dom) dom->id = vm->def->id;
+    if (dom)
+        dom->id = vm->def->id;
 
-endjob:
-    if (qemuDomainObjEndJob(driver, vm) == 0) {
+    if (qemuDomainObjEndJob(driver, vm) == 0)
         vm = NULL;
-        goto cleanup;
-    }
 
 cleanup:
     virDomainDefFree(def);
-    virObjectUnref(caps);
     virDomainChrSourceDefFree(monConfig);
     if (vm)
         virDomainObjUnlock(vm);
+    virObjectUnref(caps);
     qemuDriverUnlock(driver);
     VIR_FREE(pidfile);
     return dom;
