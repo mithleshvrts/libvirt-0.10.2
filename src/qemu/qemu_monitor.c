@@ -35,6 +35,7 @@
 #include "memory.h"
 #include "logging.h"
 #include "virfile.h"
+#include "virprocess.h"
 #include "virobject.h"
 
 #ifdef WITH_DTRACE_PROBES
