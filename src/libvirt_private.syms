@@ -167,7 +167,7 @@ virCommandSetPreExecHook;
 virCommandSetWorkingDirectory;
 virCommandToString;
 virCommandTransferFD;
-virCommandTranslateStatus;
+virProcessTranslateStatus;
 virCommandWait;
 virCommandWriteArgLog;
 virFork;
