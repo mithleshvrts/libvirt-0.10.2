@@ -95,6 +95,7 @@ test_programs = virshtest sockettest \
 	virauthconfigtest \
 	virbitmaptest virendiantest \
 	virstoragetest \
+	virstringtest \
 	$(NULL)
 
 if WITH_SECDRIVER_SELINUX
@@ -553,6 +554,11 @@ virstoragetest_SOURCES = \
 	virstoragetest.c testutils.h testutils.c
 virstoragetest_CFLAGS = -Dabs_builddir="\"$(abs_builddir)\"" $(AM_CFLAGS)
 virstoragetest_LDADD = $(LDADDS)
+
+virstringtest_SOURCES = \
+	virstringtest.c testutils.h testutils.c
+virstringtest_CFLAGS = -Dabs_builddir="\"$(abs_builddir)\"" $(AM_CFLAGS)
+virstringtest_LDADD = $(LDADDS)
 
 viruritest_SOURCES = \
 	viruritest.c testutils.h testutils.c
