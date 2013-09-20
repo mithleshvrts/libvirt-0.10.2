@@ -1,7 +1,7 @@
 /*
  * qemu_migration.c: QEMU migration handling
  *
- * Copyright (C) 2006-2012 Red Hat, Inc.
+ * Copyright (C) 2006-2013 Red Hat, Inc.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -960,7 +960,10 @@ qemuMigrationWaitForSpice(struct qemud_driver *driver,
         /* Poll every 50ms for progress & to allow cancellation */
         struct timespec ts = { .tv_sec = 0, .tv_nsec = 50 * 1000 * 1000ull };
 
-        qemuDomainObjEnterMonitorWithDriver(driver, vm);
+        if (qemuDomainObjEnterMonitorAsync(driver, vm,
+                                           QEMU_ASYNC_JOB_MIGRATION_OUT) < 0)
+            return -1;
+
         if (qemuMonitorGetSpiceMigrationStatus(priv->mon,
                                                &spice_migrated) < 0) {
             qemuDomainObjExitMonitorWithDriver(driver, vm);
