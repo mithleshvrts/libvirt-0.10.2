@@ -343,8 +343,7 @@ int qemuSetupCgroup(struct qemud_driver *driver,
     }
 
     if (qemuCgroupControllerActive(driver, VIR_CGROUP_CONTROLLER_MEMORY)) {
-        rc = virCgroupSetMemoryHardLimit(cgroup,
-                                         qemuDomainMemoryLimit(vm->def));
+        rc = virCgroupSetMemoryHardLimit(cgroup, vm->def->mem.hard_limit);
         if (rc != 0) {
             virReportSystemError(-rc,
                                  _("Unable to set memory hard limit for domain %s"),

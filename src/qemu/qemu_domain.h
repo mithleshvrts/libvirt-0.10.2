@@ -364,6 +364,5 @@ void qemuDomainCleanupRemove(virDomainObjPtr vm,
 void qemuDomainCleanupRun(struct qemud_driver *driver,
                           virDomainObjPtr vm);
 
-unsigned long long qemuDomainMemoryLimit(virDomainDefPtr def);
 
 #endif /* __QEMU_DOMAIN_H__ */
