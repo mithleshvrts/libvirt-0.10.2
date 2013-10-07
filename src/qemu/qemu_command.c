@@ -6003,7 +6003,7 @@ qemuBuildCommandLine(virConnectPtr conn,
                      * add the newly minted hostdev to the hostdevs array.
                      */
                     if (qemuAssignDeviceHostdevAlias(def, hostdev,
-                                                     (def->nhostdevs-1)) < 0) {
+                                                     def->nhostdevs) < 0) {
                         goto error;
                     }
 
