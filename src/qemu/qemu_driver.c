@@ -2053,7 +2053,7 @@ qemuDomainDestroyFlags(virDomainPtr dom,
                        unsigned int flags)
 {
     struct qemud_driver *driver = dom->conn->privateData;
-    virDomainObjPtr vm;
+    virDomainObjPtr vm = NULL;
     int ret = -1;
     virDomainEventPtr event = NULL;
     qemuDomainObjPrivatePtr priv;
@@ -2074,6 +2074,9 @@ qemuDomainDestroyFlags(virDomainPtr dom,
 
     qemuDomainSetFakeReboot(driver, vm, false);
 
+    /* Make sure @vm doesn't disappear during our API.
+     * See RHBZ 1030736 for more info */
+    virObjectRef(vm);
 
     /* We need to prevent monitor EOF callback from doing our work (and sending
      * misleading events) while the vm is unlocked inside BeginJob/ProcessKill API
@@ -2131,6 +2134,8 @@ endjob:
         vm = NULL;
 
 cleanup:
+    if (!virObjectUnref(vm))
+        vm = NULL;
     if (vm)
         virDomainObjUnlock(vm);
     if (event)
