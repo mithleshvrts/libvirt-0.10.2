@@ -608,13 +608,8 @@ networkBuildDnsmasqArgv(virNetworkObjPtr network,
     if (network->def->domain)
         virCommandAddArgPair(cmd, "--domain", network->def->domain);
     /* need to specify local even if no domain specified */
-    if (network->def->domain ||
-        !(network->def->dns && network->def->dns->forwardPlainNames)) {
-        virCommandAddArgFormat(cmd, "--local=/%s/",
-                               network->def->domain ? network->def->domain : "");
-    }
     if (!(network->def->dns && network->def->dns->forwardPlainNames))
-        virCommandAddArg(cmd, "--domain-needed");
+       virCommandAddArgList(cmd, "--local=//", "--domain-needed", NULL);
 
     if (pidfile)
         virCommandAddArgPair(cmd, "--pid-file", pidfile);
