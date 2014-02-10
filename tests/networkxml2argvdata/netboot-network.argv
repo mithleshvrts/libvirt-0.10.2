@@ -1,5 +1,5 @@
 @DNSMASQ@ --strict-order --domain=example.com \
---local=// --domain-needed --conf-file= \
+--conf-file= \
 --except-interface lo --bind-interfaces --listen-address 192.168.122.1 \
 --dhcp-range 192.168.122.2,192.168.122.254 \
 --dhcp-leasefile=/var/lib/libvirt/dnsmasq/netboot.leases \
