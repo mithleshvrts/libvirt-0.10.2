@@ -3157,7 +3157,7 @@ int qemuMonitorJSONAddDrive(qemuMonitorPtr mon,
     }
     args = NULL; /* cmd owns reference to args now */
 
-    if ((ret = qemuMonitorJSONCommand(mon, cmd, &reply) < 0))
+    if ((ret = qemuMonitorJSONCommand(mon, cmd, &reply)) < 0)
         goto cleanup;
 
     if (qemuMonitorJSONHasError(reply, "CommandNotFound")) {
@@ -3178,7 +3178,7 @@ int qemuMonitorJSONAddDrive(qemuMonitorPtr mon,
     if (!cmd)
         return -1;
 
-    if ((ret = qemuMonitorJSONCommand(mon, cmd, &reply) < 0))
+    if ((ret = qemuMonitorJSONCommand(mon, cmd, &reply)) < 0)
         goto cleanup;
 
     if (qemuMonitorJSONHasError(reply, "CommandNotFound")) {
