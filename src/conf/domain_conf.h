@@ -2359,7 +2359,4 @@ VIR_ENUM_DECL(virDomainStartupPolicy)
 int virDomainList(virConnectPtr conn, virHashTablePtr domobjs,
                   virDomainPtr **domains, unsigned int flags);
 
-virDomainVcpuPinDefPtr virDomainLookupVcpuPin(virDomainDefPtr def,
-                                              int vcpuid);
-
 #endif /* __DOMAIN_CONF_H */

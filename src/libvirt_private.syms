@@ -448,7 +448,6 @@ virDomainLiveConfigHelperMethod;
 virDomainLoadAllConfigs;
 virDomainLockFailureTypeFromString;
 virDomainLockFailureTypeToString;
-virDomainLookupVcpuPin;
 virDomainMemballoonModelTypeFromString;
 virDomainMemballoonModelTypeToString;
 virDomainMemDumpTypeFromString;
