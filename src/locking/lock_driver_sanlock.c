@@ -914,11 +914,6 @@ static int virLockManagerSanlockAcquire(virLockManagerPtr lock,
         return -1;
     }
 
-    if (VIR_ALLOC(opt) < 0) {
-        virReportOOMError();
-        return -1;
-    }
-
     /* We only initialize 'sock' if we are in the real
      * child process and we need it to be inherited
      *
@@ -951,6 +946,11 @@ static int virLockManagerSanlockAcquire(virLockManagerPtr lock,
     } else if (!priv->registered) {
         VIR_DEBUG("Process not registered, not acquiring lock");
         return 0;
+    }
+
+    if (VIR_ALLOC(opt) < 0) {
+        virReportOOMError();
+        goto error;
     }
 
     /* sanlock doesn't use owner_name for anything, so it's safe to take just
