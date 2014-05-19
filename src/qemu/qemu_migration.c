@@ -993,8 +993,9 @@ qemuMigrationUpdateJobStatus(struct qemud_driver *driver,
 
     ret = qemuDomainObjEnterMonitorAsync(driver, vm, asyncJob);
     if (ret < 0) {
-        /* Guest already exited; nothing further to update.  */
-        return -1;
+        /* Guest already exited or waiting for the job timed out; nothing
+         * further to update. */
+        return ret;
     }
     ret = qemuMonitorGetMigrationStatus(priv->mon,
                                         &status,
@@ -1088,7 +1089,7 @@ qemuMigrationWaitForCompletion(struct qemud_driver *driver, virDomainObjPtr vm,
             pauseReason == VIR_DOMAIN_PAUSED_IOERROR)
             goto cancel;
 
-        if (qemuMigrationUpdateJobStatus(driver, vm, job, asyncJob) < 0)
+        if (qemuMigrationUpdateJobStatus(driver, vm, job, asyncJob) == -1)
             goto cleanup;
 
         if (dconn && virConnectIsAlive(dconn) <= 0) {
@@ -1134,7 +1135,7 @@ qemuDomainMigrateGraphicsRelocate(struct qemud_driver *driver,
                                   qemuMigrationCookiePtr cookie)
 {
     qemuDomainObjPrivatePtr priv = vm->privateData;
-    int ret;
+    int ret = -1;
     char *listenAddress;
     virSocketAddr addr;
 
@@ -1157,9 +1158,8 @@ qemuDomainMigrateGraphicsRelocate(struct qemud_driver *driver,
          virSocketAddrIsWildcard(&addr)))
         listenAddress = cookie->remoteHostname;
 
-    ret = qemuDomainObjEnterMonitorAsync(driver, vm,
-                                         QEMU_ASYNC_JOB_MIGRATION_OUT);
-    if (ret == 0) {
+    if (qemuDomainObjEnterMonitorAsync(driver, vm,
+                                       QEMU_ASYNC_JOB_MIGRATION_OUT) == 0) {
         ret = qemuMonitorGraphicsRelocate(priv->mon,
                                           cookie->graphics->type,
                                           listenAddress,
