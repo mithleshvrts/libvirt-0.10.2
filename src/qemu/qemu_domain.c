@@ -768,6 +768,7 @@ qemuDomainObjBeginJobInternal(struct qemud_driver *driver,
     unsigned long long now;
     unsigned long long then;
     bool nested = job == QEMU_JOB_ASYNC_NESTED;
+    int ret;
 
     priv->jobs_queued++;
 
@@ -838,17 +839,21 @@ error:
              qemuDomainAsyncJobTypeToString(priv->job.asyncJob),
              priv->job.owner, priv->job.asyncOwner);
 
-    if (errno == ETIMEDOUT)
+    ret = -1;
+    if (errno == ETIMEDOUT) {
         virReportError(VIR_ERR_OPERATION_TIMEOUT,
                        "%s", _("cannot acquire state change lock"));
-    else if (driver->max_queued &&
-             priv->jobs_queued > driver->max_queued)
+        ret = -2;
+    } else if (driver->max_queued &&
+               priv->jobs_queued > driver->max_queued) {
         virReportError(VIR_ERR_OPERATION_FAILED,
                        "%s", _("cannot acquire state change lock "
                                "due to max_queued limit"));
-    else
+        ret = -2;
+    } else {
         virReportSystemError(errno,
                              "%s", _("cannot acquire job mutex"));
+    }
     priv->jobs_queued--;
     if (driver_locked) {
         virDomainObjUnlock(obj);
@@ -856,7 +861,7 @@ error:
         virDomainObjLock(obj);
     }
     virObjectUnref(obj);
-    return -1;
+    return ret;
 }
 
 /*
@@ -872,16 +877,22 @@ int qemuDomainObjBeginJob(struct qemud_driver *driver,
                           virDomainObjPtr obj,
                           enum qemuDomainJob job)
 {
-    return qemuDomainObjBeginJobInternal(driver, false, obj, job,
-                                         QEMU_ASYNC_JOB_NONE);
+    if (qemuDomainObjBeginJobInternal(driver, false, obj, job,
+                                      QEMU_ASYNC_JOB_NONE) < 0)
+        return -1;
+    else
+        return 0;
 }
 
 int qemuDomainObjBeginAsyncJob(struct qemud_driver *driver,
                                virDomainObjPtr obj,
                                enum qemuDomainAsyncJob asyncJob)
 {
-    return qemuDomainObjBeginJobInternal(driver, false, obj, QEMU_JOB_ASYNC,
-                                         asyncJob);
+    if (qemuDomainObjBeginJobInternal(driver, false, obj, QEMU_JOB_ASYNC,
+                                      asyncJob) < 0)
+        return -1;
+    else
+        return 0;
 }
 
 /*
@@ -904,16 +915,22 @@ int qemuDomainObjBeginJobWithDriver(struct qemud_driver *driver,
         return -1;
     }
 
-    return qemuDomainObjBeginJobInternal(driver, true, obj, job,
-                                         QEMU_ASYNC_JOB_NONE);
+    if (qemuDomainObjBeginJobInternal(driver, true, obj, job,
+                                      QEMU_ASYNC_JOB_NONE) < 0)
+        return -1;
+    else
+        return 0;
 }
 
 int qemuDomainObjBeginAsyncJobWithDriver(struct qemud_driver *driver,
                                          virDomainObjPtr obj,
                                          enum qemuDomainAsyncJob asyncJob)
 {
-    return qemuDomainObjBeginJobInternal(driver, true, obj, QEMU_JOB_ASYNC,
-                                         asyncJob);
+    if (qemuDomainObjBeginJobInternal(driver, true, obj, QEMU_JOB_ASYNC,
+                                      asyncJob) < 0)
+        return -1;
+    else
+        return 0;
 }
 
 /*
