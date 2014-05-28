@@ -618,6 +618,12 @@ mymain(void)
     DO_TEST("net-mcast", NONE);
     DO_TEST("net-hostdev",
             QEMU_CAPS_PCIDEVICE, QEMU_CAPS_DEVICE, QEMU_CAPS_NODEFCONFIG);
+    DO_TEST("net-hostdev-multidomain",
+            QEMU_CAPS_PCIDEVICE, QEMU_CAPS_DEVICE, QEMU_CAPS_NODEFCONFIG,
+            QEMU_CAPS_HOST_PCI_MULTIDOMAIN);
+    DO_TEST_FAILURE("net-hostdev-multidomain",
+                    QEMU_CAPS_PCIDEVICE, QEMU_CAPS_DEVICE,
+                    QEMU_CAPS_NODEFCONFIG);
 
     DO_TEST("serial-vc", NONE);
     DO_TEST("serial-pty", NONE);

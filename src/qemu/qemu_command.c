@@ -3612,7 +3612,18 @@ qemuBuildPCIHostdevDevStr(virDomainHostdevDefPtr dev, const char *configfd,
     virBuffer buf = VIR_BUFFER_INITIALIZER;
 
     virBufferAddLit(&buf, "pci-assign");
-    virBufferAsprintf(&buf, ",host=%.2x:%.2x.%.1x",
+    virBufferAddLit(&buf, ",host=");
+    if (dev->source.subsys.u.pci.domain) {
+        if (!qemuCapsGet(caps, QEMU_CAPS_HOST_PCI_MULTIDOMAIN)) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("non-zero domain='%.4x' in host device PCI address "
+                             "not supported in this QEMU binary"),
+                           dev->source.subsys.u.pci.domain);
+            goto error;
+        }
+        virBufferAsprintf(&buf, "%.4x:", dev->source.subsys.u.pci.domain);
+    }
+    virBufferAsprintf(&buf, "%.2x:%.2x.%.1x",
                       dev->source.subsys.u.pci.bus,
                       dev->source.subsys.u.pci.slot,
                       dev->source.subsys.u.pci.function);
@@ -3640,16 +3651,33 @@ error:
 
 
 char *
-qemuBuildPCIHostdevPCIDevStr(virDomainHostdevDefPtr dev)
+qemuBuildPCIHostdevPCIDevStr(virDomainHostdevDefPtr dev,
+                             qemuCapsPtr caps)
 {
     char *ret = NULL;
 
-    if (virAsprintf(&ret, "host=%.2x:%.2x.%.1x",
-                    dev->source.subsys.u.pci.bus,
-                    dev->source.subsys.u.pci.slot,
-                    dev->source.subsys.u.pci.function) < 0)
-        virReportOOMError();
-
+    if (dev->source.subsys.u.pci.domain) {
+        if (!qemuCapsGet(caps, QEMU_CAPS_HOST_PCI_MULTIDOMAIN)) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("non-zero domain='%.4x' in host device PCI address "
+                             "not supported in this QEMU binary"),
+                           dev->source.subsys.u.pci.domain);
+            goto cleanup;
+        }
+        if (virAsprintf(&ret, "host=%.4x:%.2x:%.2x.%.1x",
+                        dev->source.subsys.u.pci.domain,
+                        dev->source.subsys.u.pci.bus,
+                        dev->source.subsys.u.pci.slot,
+                        dev->source.subsys.u.pci.function) < 0)
+           virReportOOMError();
+    } else {
+        if (virAsprintf(&ret, "host=%.2x:%.2x.%.1x",
+                        dev->source.subsys.u.pci.bus,
+                        dev->source.subsys.u.pci.slot,
+                        dev->source.subsys.u.pci.function) < 0)
+            virReportOOMError();
+    }
+ cleanup:
     return ret;
 }
 
@@ -6832,7 +6860,7 @@ qemuBuildCommandLine(virConnectPtr conn,
                 VIR_FREE(devstr);
             } else if (qemuCapsGet(caps, QEMU_CAPS_PCIDEVICE)) {
                 virCommandAddArg(cmd, "-pcidevice");
-                if (!(devstr = qemuBuildPCIHostdevPCIDevStr(hostdev)))
+                if (!(devstr = qemuBuildPCIHostdevPCIDevStr(hostdev, caps)))
                     goto error;
                 virCommandAddArg(cmd, devstr);
                 VIR_FREE(devstr);
