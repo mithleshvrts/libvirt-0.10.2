@@ -167,6 +167,7 @@ enum qemuCapsFlags {
     QEMU_CAPS_IPV6_MIGRATION,           /* -incoming [::] */
     QEMU_CAPS_VNC_SHARE_POLICY,         /* set display sharing policy */
     QEMU_CAPS_MLOCK,                    /* -realtime mlock=on|off */
+    QEMU_CAPS_HOST_PCI_MULTIDOMAIN,     /* support domain > 0 in host pci address */
 
     QEMU_CAPS_LAST,                   /* this must always be the last item */
 };
