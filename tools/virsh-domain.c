@@ -7618,8 +7618,22 @@ static const vshCmdInfo info_detach_device[] = {
 static const vshCmdOptDef opts_detach_device[] = {
     {"domain", VSH_OT_DATA, VSH_OFLAG_REQ, N_("domain name, id or uuid")},
     {"file",   VSH_OT_DATA, VSH_OFLAG_REQ, N_("XML file")},
-    {"persistent", VSH_OT_ALIAS, 0, "config"},
-    {"config", VSH_OT_BOOL, 0, N_("affect next boot")},
+    {.name = "persistent",
+     .type = VSH_OT_BOOL,
+     .help = N_("make live change persistent")
+    },
+    {.name = "config",
+     .type = VSH_OT_BOOL,
+     .help = N_("affect next boot")
+    },
+    {.name = "live",
+     .type = VSH_OT_BOOL,
+     .help = N_("affect running domain")
+    },
+    {.name = "current",
+     .type = VSH_OT_BOOL,
+     .help = N_("affect current domain")
+    },
     {NULL, 0, 0, NULL}
 };
 
@@ -7631,10 +7645,28 @@ cmdDetachDevice(vshControl *ctl, const vshCmd *cmd)
     char *buffer = NULL;
     int ret;
     bool funcRet = false;
-    unsigned int flags;
+    bool current = vshCommandOptBool(cmd, "current");
+    bool config = vshCommandOptBool(cmd, "config");
+    bool live = vshCommandOptBool(cmd, "live");
+    bool persistent = vshCommandOptBool(cmd, "persistent");
+    unsigned int flags = VIR_DOMAIN_AFFECT_CURRENT;
+
+    VSH_EXCLUSIVE_OPTIONS_VAR(persistent, current);
+
+    VSH_EXCLUSIVE_OPTIONS_VAR(current, live);
+    VSH_EXCLUSIVE_OPTIONS_VAR(current, config);
+
+    if (config || persistent)
+        flags |= VIR_DOMAIN_AFFECT_CONFIG;
+    if (live)
+        flags |= VIR_DOMAIN_AFFECT_LIVE;
 
     if (!(dom = vshCommandOptDomain(ctl, cmd, NULL)))
         return false;
+
+    if (persistent &&
+        virDomainIsActive(dom) == 1)
+        flags |= VIR_DOMAIN_AFFECT_LIVE;
 
     if (vshCommandOptString(cmd, "file", &from) <= 0)
         goto cleanup;
@@ -7644,14 +7676,10 @@ cmdDetachDevice(vshControl *ctl, const vshCmd *cmd)
         goto cleanup;
     }
 
-    if (vshCommandOptBool(cmd, "config")) {
-        flags = VIR_DOMAIN_AFFECT_CONFIG;
-        if (virDomainIsActive(dom) == 1)
-           flags |= VIR_DOMAIN_AFFECT_LIVE;
+    if (flags != 0)
         ret = virDomainDetachDeviceFlags(dom, buffer, flags);
-    } else {
+    else
         ret = virDomainDetachDevice(dom, buffer);
-    }
 
     if (ret < 0) {
         vshError(ctl, _("Failed to detach device from %s"), from);
