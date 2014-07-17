@@ -137,8 +137,22 @@ static const vshCmdInfo info_attach_device[] = {
 static const vshCmdOptDef opts_attach_device[] = {
     {"domain", VSH_OT_DATA, VSH_OFLAG_REQ, N_("domain name, id or uuid")},
     {"file",   VSH_OT_DATA, VSH_OFLAG_REQ, N_("XML file")},
-    {"persistent", VSH_OT_ALIAS, 0, "config"},
-    {"config", VSH_OT_BOOL, 0, N_("affect next boot")},
+    {.name = "persistent",
+     .type = VSH_OT_BOOL,
+     .help = N_("make live change persistent")
+    },
+    {.name = "config",
+     .type = VSH_OT_BOOL,
+     .help = N_("affect next boot")
+    },
+    {.name = "live",
+     .type = VSH_OT_BOOL,
+     .help = N_("affect running domain")
+    },
+    {.name = "current",
+     .type = VSH_OT_BOOL,
+     .help = N_("affect current domain")
+    },
     {NULL, 0, 0, NULL}
 };
 
@@ -149,7 +163,21 @@ cmdAttachDevice(vshControl *ctl, const vshCmd *cmd)
     const char *from = NULL;
     char *buffer;
     int ret;
-    unsigned int flags;
+    unsigned int flags = VIR_DOMAIN_AFFECT_CURRENT;
+    bool current = vshCommandOptBool(cmd, "current");
+    bool config = vshCommandOptBool(cmd, "config");
+    bool live = vshCommandOptBool(cmd, "live");
+    bool persistent = vshCommandOptBool(cmd, "persistent");
+
+    VSH_EXCLUSIVE_OPTIONS_VAR(persistent, current);
+
+    VSH_EXCLUSIVE_OPTIONS_VAR(current, live);
+    VSH_EXCLUSIVE_OPTIONS_VAR(current, config);
+
+    if (config || persistent)
+        flags |= VIR_DOMAIN_AFFECT_CONFIG;
+    if (live)
+        flags |= VIR_DOMAIN_AFFECT_LIVE;
 
     if (!(dom = vshCommandOptDomain(ctl, cmd, NULL)))
         return false;
@@ -159,20 +187,21 @@ cmdAttachDevice(vshControl *ctl, const vshCmd *cmd)
         return false;
     }
 
+    if (persistent &&
+        virDomainIsActive(dom) == 1)
+        flags |= VIR_DOMAIN_AFFECT_LIVE;
+
     if (virFileReadAll(from, VSH_MAX_XML_FILE, &buffer) < 0) {
         vshReportError(ctl);
         virDomainFree(dom);
         return false;
     }
 
-    if (vshCommandOptBool(cmd, "config")) {
-        flags = VIR_DOMAIN_AFFECT_CONFIG;
-        if (virDomainIsActive(dom) == 1)
-           flags |= VIR_DOMAIN_AFFECT_LIVE;
+    if (flags)
         ret = virDomainAttachDeviceFlags(dom, buffer, flags);
-    } else {
+    else
         ret = virDomainAttachDevice(dom, buffer);
-    }
+
     VIR_FREE(buffer);
 
     if (ret < 0) {
