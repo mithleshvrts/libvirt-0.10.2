@@ -8188,7 +8188,12 @@ cmdDetachDisk(vshControl *ctl, const vshCmd *cmd)
     if (vshCommandOptString(cmd, "target", &target) <= 0)
         goto cleanup;
 
-    if (!(doc = virDomainGetXMLDesc(dom, 0)))
+    if (flags == VIR_DOMAIN_AFFECT_CONFIG)
+        doc = virDomainGetXMLDesc(dom, VIR_DOMAIN_XML_INACTIVE);
+    else
+        doc = virDomainGetXMLDesc(dom, 0);
+
+    if (!doc)
         goto cleanup;
 
     if (persistent &&
