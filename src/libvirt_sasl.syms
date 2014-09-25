@@ -1,0 +1,33 @@
+#
+# SASL-specific symbols
+#
+
+# virnetclient.h
+virNetClientSetSASLSession;
+
+# virnetsaslcontext.h
+virNetSASLContextCheckIdentity;
+virNetSASLContextNewClient;
+virNetSASLContextNewServer;
+virNetSASLSessionClientStart;
+virNetSASLSessionClientStep;
+virNetSASLSessionDecode;
+virNetSASLSessionEncode;
+virNetSASLSessionExtKeySize;
+virNetSASLSessionGetIdentity;
+virNetSASLSessionGetKeySize;
+virNetSASLSessionGetMaxBufSize;
+virNetSASLSessionListMechanisms;
+virNetSASLSessionNewClient;
+virNetSASLSessionNewServer;
+virNetSASLSessionSecProps;
+virNetSASLSessionServerStart;
+virNetSASLSessionServerStep;
+
+
+# virnetserverclient.h
+virNetServerClientSetSASLSession;
+
+
+# virnetsocket.h
+virNetSocketSetSASLSession;
