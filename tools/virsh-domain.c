@@ -137,22 +137,8 @@ static const vshCmdInfo info_attach_device[] = {
 static const vshCmdOptDef opts_attach_device[] = {
     {"domain", VSH_OT_DATA, VSH_OFLAG_REQ, N_("domain name, id or uuid")},
     {"file",   VSH_OT_DATA, VSH_OFLAG_REQ, N_("XML file")},
-    {.name = "persistent",
-     .type = VSH_OT_BOOL,
-     .help = N_("make live change persistent")
-    },
-    {.name = "config",
-     .type = VSH_OT_BOOL,
-     .help = N_("affect next boot")
-    },
-    {.name = "live",
-     .type = VSH_OT_BOOL,
-     .help = N_("affect running domain")
-    },
-    {.name = "current",
-     .type = VSH_OT_BOOL,
-     .help = N_("affect current domain")
-    },
+    {"persistent", VSH_OT_ALIAS, 0, "config"},
+    {"config", VSH_OT_BOOL, 0, N_("affect next boot")},
     {NULL, 0, 0, NULL}
 };
 
@@ -163,21 +149,7 @@ cmdAttachDevice(vshControl *ctl, const vshCmd *cmd)
     const char *from = NULL;
     char *buffer;
     int ret;
-    unsigned int flags = VIR_DOMAIN_AFFECT_CURRENT;
-    bool current = vshCommandOptBool(cmd, "current");
-    bool config = vshCommandOptBool(cmd, "config");
-    bool live = vshCommandOptBool(cmd, "live");
-    bool persistent = vshCommandOptBool(cmd, "persistent");
-
-    VSH_EXCLUSIVE_OPTIONS_VAR(persistent, current);
-
-    VSH_EXCLUSIVE_OPTIONS_VAR(current, live);
-    VSH_EXCLUSIVE_OPTIONS_VAR(current, config);
-
-    if (config || persistent)
-        flags |= VIR_DOMAIN_AFFECT_CONFIG;
-    if (live)
-        flags |= VIR_DOMAIN_AFFECT_LIVE;
+    unsigned int flags;
 
     if (!(dom = vshCommandOptDomain(ctl, cmd, NULL)))
         return false;
@@ -187,21 +159,20 @@ cmdAttachDevice(vshControl *ctl, const vshCmd *cmd)
         return false;
     }
 
-    if (persistent &&
-        virDomainIsActive(dom) == 1)
-        flags |= VIR_DOMAIN_AFFECT_LIVE;
-
     if (virFileReadAll(from, VSH_MAX_XML_FILE, &buffer) < 0) {
         vshReportError(ctl);
         virDomainFree(dom);
         return false;
     }
 
-    if (flags)
+    if (vshCommandOptBool(cmd, "config")) {
+        flags = VIR_DOMAIN_AFFECT_CONFIG;
+        if (virDomainIsActive(dom) == 1)
+           flags |= VIR_DOMAIN_AFFECT_LIVE;
         ret = virDomainAttachDeviceFlags(dom, buffer, flags);
-    else
+    } else {
         ret = virDomainAttachDevice(dom, buffer);
-
+    }
     VIR_FREE(buffer);
 
     if (ret < 0) {
@@ -235,6 +206,8 @@ static const vshCmdOptDef opts_attach_disk[] = {
     {"cache",     VSH_OT_STRING, 0, N_("cache mode of disk device")},
     {"type",    VSH_OT_STRING, 0, N_("target device type")},
     {"mode",    VSH_OT_STRING, 0, N_("mode of device reading and writing")},
+    {"persistent", VSH_OT_ALIAS, 0, "config"},
+    {"config", VSH_OT_BOOL, 0, N_("affect next boot")},
     {"sourcetype", VSH_OT_STRING, 0, N_("type of source (block|file)")},
     {"serial", VSH_OT_STRING, 0, N_("serial of disk device")},
     {"shareable", VSH_OT_BOOL, 0, N_("shareable between domains")},
@@ -242,23 +215,6 @@ static const vshCmdOptDef opts_attach_disk[] = {
     {"address", VSH_OT_STRING, 0, N_("address of disk device")},
     {"multifunction", VSH_OT_BOOL, 0,
      N_("use multifunction pci under specified address")},
-    {.name = "persistent",
-     .type = VSH_OT_BOOL,
-     .help = N_("make live change persistent")
-    },
-    {.name = "config",
-     .type = VSH_OT_BOOL,
-     .help = N_("affect next boot")
-    },
-    {.name = "live",
-     .type = VSH_OT_BOOL,
-     .help = N_("affect running domain")
-    },
-    {.name = "current",
-     .type = VSH_OT_BOOL,
-     .help = N_("affect current domain")
-    },
-
     {NULL, 0, 0, NULL}
 };
 
@@ -419,25 +375,11 @@ cmdAttachDisk(vshControl *ctl, const vshCmd *cmd)
     struct DiskAddress diskAddr;
     bool isFile = false, functionReturn = false;
     int ret;
-    unsigned int flags = VIR_DOMAIN_AFFECT_CURRENT;
+    unsigned int flags;
     const char *stype = NULL;
     virBuffer buf = VIR_BUFFER_INITIALIZER;
     char *xml;
     struct stat st;
-    bool current = vshCommandOptBool(cmd, "current");
-    bool config = vshCommandOptBool(cmd, "config");
-    bool live = vshCommandOptBool(cmd, "live");
-    bool persistent = vshCommandOptBool(cmd, "persistent");
-
-    VSH_EXCLUSIVE_OPTIONS_VAR(persistent, current);
-
-    VSH_EXCLUSIVE_OPTIONS_VAR(current, live);
-    VSH_EXCLUSIVE_OPTIONS_VAR(current, config);
-
-    if (config || persistent)
-        flags |= VIR_DOMAIN_AFFECT_CONFIG;
-    if (live)
-        flags |= VIR_DOMAIN_AFFECT_LIVE;
 
     if (!(dom = vshCommandOptDomain(ctl, cmd, NULL)))
         goto cleanup;
@@ -451,10 +393,6 @@ cmdAttachDisk(vshControl *ctl, const vshCmd *cmd)
 
     if (vshCommandOptString(cmd, "target", &target) <= 0)
         goto cleanup;
-
-    if (persistent &&
-        virDomainIsActive(dom) == 1)
-        flags |= VIR_DOMAIN_AFFECT_LIVE;
 
     if (vshCommandOptString(cmd, "driver", &driver) < 0 ||
         vshCommandOptString(cmd, "subdriver", &subdriver) < 0 ||
@@ -580,10 +518,14 @@ cmdAttachDisk(vshControl *ctl, const vshCmd *cmd)
 
     xml = virBufferContentAndReset(&buf);
 
-    if (flags)
+    if (vshCommandOptBool(cmd, "config")) {
+        flags = VIR_DOMAIN_AFFECT_CONFIG;
+        if (virDomainIsActive(dom) == 1)
+            flags |= VIR_DOMAIN_AFFECT_LIVE;
         ret = virDomainAttachDeviceFlags(dom, xml, flags);
-    else
+    } else {
         ret = virDomainAttachDevice(dom, xml);
+    }
 
     VIR_FREE(xml);
 
@@ -7647,22 +7589,8 @@ static const vshCmdInfo info_detach_device[] = {
 static const vshCmdOptDef opts_detach_device[] = {
     {"domain", VSH_OT_DATA, VSH_OFLAG_REQ, N_("domain name, id or uuid")},
     {"file",   VSH_OT_DATA, VSH_OFLAG_REQ, N_("XML file")},
-    {.name = "persistent",
-     .type = VSH_OT_BOOL,
-     .help = N_("make live change persistent")
-    },
-    {.name = "config",
-     .type = VSH_OT_BOOL,
-     .help = N_("affect next boot")
-    },
-    {.name = "live",
-     .type = VSH_OT_BOOL,
-     .help = N_("affect running domain")
-    },
-    {.name = "current",
-     .type = VSH_OT_BOOL,
-     .help = N_("affect current domain")
-    },
+    {"persistent", VSH_OT_ALIAS, 0, "config"},
+    {"config", VSH_OT_BOOL, 0, N_("affect next boot")},
     {NULL, 0, 0, NULL}
 };
 
@@ -7674,28 +7602,10 @@ cmdDetachDevice(vshControl *ctl, const vshCmd *cmd)
     char *buffer = NULL;
     int ret;
     bool funcRet = false;
-    bool current = vshCommandOptBool(cmd, "current");
-    bool config = vshCommandOptBool(cmd, "config");
-    bool live = vshCommandOptBool(cmd, "live");
-    bool persistent = vshCommandOptBool(cmd, "persistent");
-    unsigned int flags = VIR_DOMAIN_AFFECT_CURRENT;
-
-    VSH_EXCLUSIVE_OPTIONS_VAR(persistent, current);
-
-    VSH_EXCLUSIVE_OPTIONS_VAR(current, live);
-    VSH_EXCLUSIVE_OPTIONS_VAR(current, config);
-
-    if (config || persistent)
-        flags |= VIR_DOMAIN_AFFECT_CONFIG;
-    if (live)
-        flags |= VIR_DOMAIN_AFFECT_LIVE;
+    unsigned int flags;
 
     if (!(dom = vshCommandOptDomain(ctl, cmd, NULL)))
         return false;
-
-    if (persistent &&
-        virDomainIsActive(dom) == 1)
-        flags |= VIR_DOMAIN_AFFECT_LIVE;
 
     if (vshCommandOptString(cmd, "file", &from) <= 0)
         goto cleanup;
@@ -7705,10 +7615,14 @@ cmdDetachDevice(vshControl *ctl, const vshCmd *cmd)
         goto cleanup;
     }
 
-    if (flags != 0)
+    if (vshCommandOptBool(cmd, "config")) {
+        flags = VIR_DOMAIN_AFFECT_CONFIG;
+        if (virDomainIsActive(dom) == 1)
+           flags |= VIR_DOMAIN_AFFECT_LIVE;
         ret = virDomainDetachDeviceFlags(dom, buffer, flags);
-    else
+    } else {
         ret = virDomainDetachDevice(dom, buffer);
+    }
 
     if (ret < 0) {
         vshError(ctl, _("Failed to detach device from %s"), from);
@@ -8166,22 +8080,8 @@ static const vshCmdInfo info_detach_disk[] = {
 static const vshCmdOptDef opts_detach_disk[] = {
     {"domain", VSH_OT_DATA, VSH_OFLAG_REQ, N_("domain name, id or uuid")},
     {"target", VSH_OT_DATA, VSH_OFLAG_REQ, N_("target of disk device")},
-    {.name = "persistent",
-     .type = VSH_OT_BOOL,
-     .help = N_("make live change persistent")
-    },
-    {.name = "config",
-     .type = VSH_OT_BOOL,
-     .help = N_("affect next boot")
-    },
-    {.name = "live",
-     .type = VSH_OT_BOOL,
-     .help = N_("affect running domain")
-    },
-    {.name = "current",
-     .type = VSH_OT_BOOL,
-     .help = N_("affect current domain")
-    },
+    {"persistent", VSH_OT_ALIAS, 0, "config"},
+    {"config", VSH_OT_BOOL, 0, N_("affect next boot")},
     {NULL, 0, 0, NULL}
 };
 
@@ -8194,22 +8094,8 @@ cmdDetachDisk(vshControl *ctl, const vshCmd *cmd)
     char *doc = NULL;
     int ret;
     bool functionReturn = false;
+    unsigned int flags;
     xmlNodePtr disk_node = NULL;
-    bool current = vshCommandOptBool(cmd, "current");
-    bool config = vshCommandOptBool(cmd, "config");
-    bool live = vshCommandOptBool(cmd, "live");
-    bool persistent = vshCommandOptBool(cmd, "persistent");
-    unsigned int flags = VIR_DOMAIN_AFFECT_CURRENT;
-
-    VSH_EXCLUSIVE_OPTIONS_VAR(persistent, current);
-
-    VSH_EXCLUSIVE_OPTIONS_VAR(current, live);
-    VSH_EXCLUSIVE_OPTIONS_VAR(current, config);
-
-    if (config || persistent)
-        flags |= VIR_DOMAIN_AFFECT_CONFIG;
-    if (live)
-        flags |= VIR_DOMAIN_AFFECT_LIVE;
 
     if (!(dom = vshCommandOptDomain(ctl, cmd, NULL)))
         goto cleanup;
@@ -8217,17 +8103,9 @@ cmdDetachDisk(vshControl *ctl, const vshCmd *cmd)
     if (vshCommandOptString(cmd, "target", &target) <= 0)
         goto cleanup;
 
-    if (flags == VIR_DOMAIN_AFFECT_CONFIG)
-        doc = virDomainGetXMLDesc(dom, VIR_DOMAIN_XML_INACTIVE);
-    else
-        doc = virDomainGetXMLDesc(dom, 0);
-
+    doc = virDomainGetXMLDesc(dom, 0);
     if (!doc)
         goto cleanup;
-
-    if (persistent &&
-        virDomainIsActive(dom) == 1)
-        flags |= VIR_DOMAIN_AFFECT_LIVE;
 
     if (!(disk_node = vshFindDisk(doc, target, VSH_FIND_DISK_NORMAL)))
         goto cleanup;
@@ -8236,18 +8114,23 @@ cmdDetachDisk(vshControl *ctl, const vshCmd *cmd)
                                        VSH_PREPARE_DISK_XML_NONE)))
         goto cleanup;
 
-    if (flags != 0)
-        ret = virDomainDetachDeviceFlags(dom, disk_xml, flags);
-    else
+    if (vshCommandOptBool(cmd, "config")) {
+        flags = VIR_DOMAIN_AFFECT_CONFIG;
+        if (virDomainIsActive(dom) == 1)
+            flags |= VIR_DOMAIN_AFFECT_LIVE;
+        ret = virDomainDetachDeviceFlags(dom,
+                                         disk_xml,
+                                         flags);
+    } else {
         ret = virDomainDetachDevice(dom, disk_xml);
+    }
 
     if (ret != 0) {
         vshError(ctl, "%s", _("Failed to detach disk"));
-        goto cleanup;
+    } else {
+        vshPrint(ctl, "%s", _("Disk detached successfully\n"));
+        functionReturn = true;
     }
-
-    vshPrint(ctl, "%s", _("Disk detached successfully\n"));
-    functionReturn = true;
 
  cleanup:
     xmlFreeNode(disk_node);

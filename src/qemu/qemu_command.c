@@ -536,8 +536,6 @@ qemuSetScsiControllerModel(virDomainDefPtr def,
             *model = VIR_DOMAIN_CONTROLLER_MODEL_SCSI_IBMVSCSI;
         } else if (qemuCapsGet(caps, QEMU_CAPS_SCSI_LSI)) {
             *model = VIR_DOMAIN_CONTROLLER_MODEL_SCSI_LSILOGIC;
-        } else if (qemuCapsGet(caps, QEMU_CAPS_VIRTIO_SCSI_PCI)) {
-            *model = VIR_DOMAIN_CONTROLLER_MODEL_SCSI_VIRTIO_SCSI;
         } else {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                            _("Unable to determine model for scsi controller"));
@@ -2075,6 +2073,64 @@ no_memory:
 }
 
 static int
+qemuParseOFlameString(virDomainDiskDefPtr def)
+{
+    int ret = -1;
+    //char *transp = NULL;
+    //char *sock = NULL;
+    char *vdisk = NULL;
+    virURIPtr uri = NULL;
+
+    virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _(" qemuParseOFlameString entered") );
+    if (!(uri = virURIParse(def->src))) {
+        return -1;
+    }
+
+    if (VIR_ALLOC(def->hosts) < 0)
+        goto no_memory;
+
+    if (STREQ(uri->scheme, "oflame")) {
+        def->hosts->transport = VIR_DOMAIN_DISK_PROTO_TRANS_TCP;
+    } else {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("Invalid transport/scheme '%s'"), uri->scheme);
+        goto error;
+    }
+    def->nhosts = 0; /* set to 1 once everything succeeds */
+
+    if (def->hosts->transport != VIR_DOMAIN_DISK_PROTO_TRANS_UNIX) {
+        def->hosts->name = strdup(uri->server);
+        if (!def->hosts->name)
+            goto no_memory;
+
+        if (virAsprintf(&def->hosts->port, "%d", uri->port) < 0)
+            goto no_memory;
+    } else {
+        goto error;
+    }
+    vdisk = uri->path + 1;
+    def->src = strdup(vdisk);
+    if (!def->src)
+        goto no_memory;
+
+    def->nhosts = 1;
+    ret = 0;
+
+cleanup:
+    virURIFree(uri);
+
+    return ret;
+
+no_memory:
+    virReportOOMError();
+error:
+    virDomainDiskHostDefFree(def->hosts);
+    VIR_FREE(def->hosts);
+    goto cleanup;
+}
+
+static int
 qemuParseGlusterString(virDomainDiskDefPtr def)
 {
     int ret = -1;
@@ -2148,6 +2204,72 @@ no_memory:
 error:
     virDomainDiskHostDefFree(def->hosts);
     VIR_FREE(def->hosts);
+    goto cleanup;
+}
+
+static int
+qemuBuildOFlameString(virDomainDiskDefPtr disk, virBufferPtr opt)
+{
+    int ret = -1;
+    int port = 0;
+    char *vdisk = NULL;
+    char *sock = NULL;
+    char *builturi = NULL;
+    char *transp = NULL;
+    char *tmpscheme = NULL;
+    virURI uri = {
+        .port = port /* just to clear rest of bits */
+    };
+
+    if (disk->nhosts != 1) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("oflame accepts only one host"));
+        return -1;
+    }
+
+    virBufferAddLit(opt, "file=");
+    transp = virDomainDiskProtocolTransportTypeToString(disk->hosts->transport);
+
+    virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("qemuBuildOFlameString Version 5531 transp '%s'"), transp);
+
+    if (virAsprintf(&vdisk, "/%s", disk->src) < 0)
+        goto no_memory;
+
+    virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("qemuBuildOFlameString vdisk '%s'"), vdisk);
+    if (virAsprintf(&tmpscheme, "oflame") < 0)
+        goto no_memory;
+
+    virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("qemuBuildOFlameString tmpscheme '%s'"), tmpscheme);
+    if (disk->hosts->port) {
+        port = atoi(disk->hosts->port);
+    }
+
+    uri.scheme = tmpscheme;
+    uri.server = disk->hosts->name;
+    uri.port = port;
+    uri.path = vdisk;
+    uri.query = sock;
+
+    builturi = virURIFormat(&uri);
+    virBufferEscape(opt, ',', ",", "%s", builturi);
+
+    virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("qemuBuildOFlameString builturi '%s'"), builturi);
+
+    ret = 0;
+
+cleanup:
+    VIR_FREE(builturi);
+    VIR_FREE(vdisk);
+    VIR_FREE(sock);
+
+    return ret;
+
+no_memory:
+    virReportOOMError();
     goto cleanup;
 }
 
@@ -2357,6 +2479,13 @@ qemuBuildDriveStr(virConnectPtr conn ATTRIBUTE_UNUSED,
                     goto error;
                 virBufferAddChar(&opt, ',');
                 break;
+
+	    case VIR_DOMAIN_DISK_PROTOCOL_OFLAME:
+                if (qemuBuildOFlameString(disk, &opt) < 0)
+                    goto error;
+                virBufferAddChar(&opt, ',');
+                break;
+
 
             case VIR_DOMAIN_DISK_PROTOCOL_SHEEPDOG:
                 if (disk->nhosts == 0) {
@@ -3612,18 +3741,7 @@ qemuBuildPCIHostdevDevStr(virDomainHostdevDefPtr dev, const char *configfd,
     virBuffer buf = VIR_BUFFER_INITIALIZER;
 
     virBufferAddLit(&buf, "pci-assign");
-    virBufferAddLit(&buf, ",host=");
-    if (dev->source.subsys.u.pci.domain) {
-        if (!qemuCapsGet(caps, QEMU_CAPS_HOST_PCI_MULTIDOMAIN)) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("non-zero domain='%.4x' in host device PCI address "
-                             "not supported in this QEMU binary"),
-                           dev->source.subsys.u.pci.domain);
-            goto error;
-        }
-        virBufferAsprintf(&buf, "%.4x:", dev->source.subsys.u.pci.domain);
-    }
-    virBufferAsprintf(&buf, "%.2x:%.2x.%.1x",
+    virBufferAsprintf(&buf, ",host=%.2x:%.2x.%.1x",
                       dev->source.subsys.u.pci.bus,
                       dev->source.subsys.u.pci.slot,
                       dev->source.subsys.u.pci.function);
@@ -3651,33 +3769,16 @@ error:
 
 
 char *
-qemuBuildPCIHostdevPCIDevStr(virDomainHostdevDefPtr dev,
-                             qemuCapsPtr caps)
+qemuBuildPCIHostdevPCIDevStr(virDomainHostdevDefPtr dev)
 {
     char *ret = NULL;
 
-    if (dev->source.subsys.u.pci.domain) {
-        if (!qemuCapsGet(caps, QEMU_CAPS_HOST_PCI_MULTIDOMAIN)) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("non-zero domain='%.4x' in host device PCI address "
-                             "not supported in this QEMU binary"),
-                           dev->source.subsys.u.pci.domain);
-            goto cleanup;
-        }
-        if (virAsprintf(&ret, "host=%.4x:%.2x:%.2x.%.1x",
-                        dev->source.subsys.u.pci.domain,
-                        dev->source.subsys.u.pci.bus,
-                        dev->source.subsys.u.pci.slot,
-                        dev->source.subsys.u.pci.function) < 0)
-           virReportOOMError();
-    } else {
-        if (virAsprintf(&ret, "host=%.2x:%.2x.%.1x",
-                        dev->source.subsys.u.pci.bus,
-                        dev->source.subsys.u.pci.slot,
-                        dev->source.subsys.u.pci.function) < 0)
-            virReportOOMError();
-    }
- cleanup:
+    if (virAsprintf(&ret, "host=%.2x:%.2x.%.1x",
+                    dev->source.subsys.u.pci.bus,
+                    dev->source.subsys.u.pci.slot,
+                    dev->source.subsys.u.pci.function) < 0)
+        virReportOOMError();
+
     return ret;
 }
 
@@ -5909,6 +6010,18 @@ qemuBuildCommandLine(virConnectPtr conn,
                         file = virBufferContentAndReset(&opt);
                     }
                     break;
+		case VIR_DOMAIN_DISK_PROTOCOL_OFLAME:
+                    {
+                        virBuffer opt = VIR_BUFFER_INITIALIZER;
+                        if (qemuBuildOFlameString(disk, &opt) < 0)
+                            goto error;
+                        if (virBufferError(&opt)) {
+                            virReportOOMError();
+                            goto error;
+                        }
+                        file = virBufferContentAndReset(&opt);
+                    }
+                    break;
                 case VIR_DOMAIN_DISK_PROTOCOL_GLUSTER:
                     {
                         virBuffer opt = VIR_BUFFER_INITIALIZER;
@@ -6860,7 +6973,7 @@ qemuBuildCommandLine(virConnectPtr conn,
                 VIR_FREE(devstr);
             } else if (qemuCapsGet(caps, QEMU_CAPS_PCIDEVICE)) {
                 virCommandAddArg(cmd, "-pcidevice");
-                if (!(devstr = qemuBuildPCIHostdevPCIDevStr(hostdev, caps)))
+                if (!(devstr = qemuBuildPCIHostdevPCIDevStr(hostdev)))
                     goto error;
                 virCommandAddArg(cmd, devstr);
                 VIR_FREE(devstr);
@@ -7382,13 +7495,19 @@ qemuParseCommandLineDisk(virCapsPtr caps,
                         goto cleanup;
 
                     VIR_FREE(p);
+                } else if (STRPREFIX(def->src, "oflame")) {
+                    def->type = VIR_DOMAIN_DISK_TYPE_NETWORK;
+                    def->protocol = VIR_DOMAIN_DISK_PROTOCOL_OFLAME;
+
+                    if (qemuParseOFlameString(def) < 0)
+                        goto cleanup;
                 } else if (STRPREFIX(def->src, "gluster")) {
                     def->type = VIR_DOMAIN_DISK_TYPE_NETWORK;
                     def->protocol = VIR_DOMAIN_DISK_PROTOCOL_GLUSTER;
 
                     if (qemuParseGlusterString(def) < 0)
                         goto cleanup;
-                } else if (STRPREFIX(def->src, "sheepdog:")) {
+                }  else if (STRPREFIX(def->src, "sheepdog:")) {
                     char *p = def->src;
                     char *port, *vdi;
 
@@ -8652,6 +8771,9 @@ virDomainDefPtr qemuParseCommandLine(virCapsPtr caps,
                 disk->type = VIR_DOMAIN_DISK_TYPE_NETWORK;
                 disk->protocol = VIR_DOMAIN_DISK_PROTOCOL_RBD;
                 val += strlen("rbd:");
+            } else if (STRPREFIX(val, "oflame")) {
+                disk->type = VIR_DOMAIN_DISK_TYPE_NETWORK;
+                disk->protocol = VIR_DOMAIN_DISK_PROTOCOL_OFLAME;
             } else if (STRPREFIX(val, "gluster")) {
                 disk->type = VIR_DOMAIN_DISK_TYPE_NETWORK;
                 disk->protocol = VIR_DOMAIN_DISK_PROTOCOL_GLUSTER;
@@ -8740,6 +8862,13 @@ virDomainDefPtr qemuParseCommandLine(virCapsPtr caps,
                             goto no_memory;
                     }
                     break;
+
+		case VIR_DOMAIN_DISK_PROTOCOL_OFLAME:
+                    if (qemuParseOFlameString(disk) < 0)
+                        goto error;
+
+                    break;
+
                 case VIR_DOMAIN_DISK_PROTOCOL_GLUSTER:
                     if (qemuParseGlusterString(disk) < 0)
                         goto error;

@@ -4593,6 +4593,15 @@ xdr_remote_domain_event_balloon_change_msg (XDR *xdrs, remote_domain_event_ballo
 }
 
 bool_t
+xdr_remote_domain_event_pmsuspend_disk_msg (XDR *xdrs, remote_domain_event_pmsuspend_disk_msg *objp)
+{
+
+         if (!xdr_remote_nonnull_domain (xdrs, &objp->dom))
+                 return FALSE;
+        return TRUE;
+}
+
+bool_t
 xdr_remote_domain_managed_save_args (XDR *xdrs, remote_domain_managed_save_args *objp)
 {
 

@@ -607,14 +607,14 @@ networkBuildDnsmasqArgv(virNetworkObjPtr network,
 
     if (network->def->domain)
         virCommandAddArgPair(cmd, "--domain", network->def->domain);
-    if (network->def->dns && network->def->dns->forwardPlainNames
-        == VIR_NETWORK_DNS_FORWARD_PLAIN_NAMES_NO) {
-        /* need to specify local=// whether or not a domain is
-         * specified, unless the config says we should forward "plain"
-         * names (i.e. not fully qualified, no '.' characters)
-         */
-        virCommandAddArgList(cmd, "--local=//", "--domain-needed", NULL);
+    /* need to specify local even if no domain specified */
+    if (network->def->domain ||
+        !(network->def->dns && network->def->dns->forwardPlainNames)) {
+        virCommandAddArgFormat(cmd, "--local=/%s/",
+                               network->def->domain ? network->def->domain : "");
     }
+    if (!(network->def->dns && network->def->dns->forwardPlainNames))
+        virCommandAddArg(cmd, "--domain-needed");
 
     if (pidfile)
         virCommandAddArgPair(cmd, "--pid-file", pidfile);

@@ -226,6 +226,7 @@ VIR_ENUM_IMPL(virDomainDiskProtocol, VIR_DOMAIN_DISK_PROTOCOL_LAST,
               "nbd",
               "rbd",
               "sheepdog",
+              "oflame",
               "gluster")
 
 VIR_ENUM_IMPL(virDomainDiskProtocolTransport, VIR_DOMAIN_DISK_PROTO_TRANS_LAST,
@@ -8629,6 +8630,26 @@ error:
     goto cleanup;
 }
 
+/*
+ * Return the vcpupin related with the vcpu id on SUCCESS, or
+ * NULL on failure.
+ */
+virDomainVcpuPinDefPtr
+virDomainLookupVcpuPin(virDomainDefPtr def,
+                       int vcpuid)
+{
+    int i;
+
+    if (!def->cputune.vcpupin)
+        return NULL;
+
+    for (i = 0; i < def->cputune.nvcpupin; i++) {
+        if (def->cputune.vcpupin[i]->vcpuid == vcpuid)
+            return def->cputune.vcpupin[i];
+    }
+
+    return NULL;
+}
 
 static int virDomainDefMaybeAddController(virDomainDefPtr def,
                                           int type,
@@ -11794,7 +11815,7 @@ virDomainVcpuPinDel(virDomainDefPtr def, int vcpu)
 
     for (n = 0; n < def->cputune.nvcpupin; n++) {
         if (vcpupin_list[n]->vcpuid == vcpu) {
-            virBitmapFree(vcpupin_list[n]->cpumask);
+            VIR_FREE(vcpupin_list[n]->cpumask);
             VIR_FREE(vcpupin_list[n]);
             memmove(&vcpupin_list[n],
                     &vcpupin_list[n+1],
@@ -14878,13 +14899,7 @@ virDomainObjIsDuplicate(virDomainObjListPtr doms,
             /* UUID & name match, but if VM is already active, refuse it */
             if (virDomainObjIsActive(vm)) {
                 virReportError(VIR_ERR_OPERATION_INVALID,
-                               _("domain '%s' is already active"),
-                               vm->def->name);
-                goto cleanup;
-            }
-            if (!vm->persistent) {
-                virReportError(VIR_ERR_OPERATION_INVALID,
-                               _("domain '%s' is already being started"),
+                               _("domain is already active as '%s'"),
                                vm->def->name);
                 goto cleanup;
             }

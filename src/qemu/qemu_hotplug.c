@@ -972,23 +972,16 @@ int qemuDomainAttachHostPciDevice(struct qemud_driver *driver,
                                          configfd, configfd_name);
         qemuDomainObjExitMonitorWithDriver(driver, vm);
     } else {
-        virDevicePCIAddressPtr guestAddr = &hostdev->info->addr.pci;
-        virDevicePCIAddressPtr hostAddr = &hostdev->source.subsys.u.pci;
-
-        if (hostAddr->domain &&
-            !qemuCapsGet(priv->caps, QEMU_CAPS_HOST_PCI_MULTIDOMAIN)) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("non-zero domain='%.4x' in host device "
-                             "PCI address not supported in this QEMU binary"),
-                           hostAddr->domain);
-            goto error;
-        }
+        virDevicePCIAddress guestAddr = hostdev->info->addr.pci;
 
         qemuDomainObjEnterMonitorWithDriver(driver, vm);
-        ret = qemuMonitorAddPCIHostDevice(priv->mon, hostAddr, guestAddr);
+        ret = qemuMonitorAddPCIHostDevice(priv->mon,
+                                          &hostdev->source.subsys.u.pci,
+                                          &guestAddr);
         qemuDomainObjExitMonitorWithDriver(driver, vm);
 
         hostdev->info->type = VIR_DOMAIN_DEVICE_ADDRESS_TYPE_PCI;
+        memcpy(&hostdev->info->addr.pci, &guestAddr, sizeof(guestAddr));
     }
     virDomainAuditHostdev(vm, hostdev, "attach", ret == 0);
     if (ret < 0)

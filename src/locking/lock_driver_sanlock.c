@@ -81,7 +81,7 @@ static virLockManagerSanlockDriver *driver = NULL;
 
 struct _virLockManagerSanlockPrivate {
     const char *vm_uri;
-    char *vm_name;
+    char vm_name[SANLK_NAME_LEN];
     unsigned char vm_uuid[VIR_UUID_BUFLEN];
     unsigned int vm_id;
     unsigned int vm_pid;
@@ -89,9 +89,6 @@ struct _virLockManagerSanlockPrivate {
     bool hasRWDisks;
     int res_count;
     struct sanlk_resource *res_args[SANLK_MAX_RESOURCES];
-
-    /* whether the VM was registered or not */
-    bool registered;
 };
 
 /*
@@ -451,7 +448,6 @@ static int virLockManagerSanlockNew(virLockManagerPtr lock,
     virLockManagerParamPtr param;
     virLockManagerSanlockPrivatePtr priv;
     int i;
-    int resCount = 0;
 
     virCheckFlags(0, -1);
 
@@ -480,8 +476,10 @@ static int virLockManagerSanlockNew(virLockManagerPtr lock,
         if (STREQ(param->key, "uuid")) {
             memcpy(priv->vm_uuid, param->value.uuid, 16);
         } else if (STREQ(param->key, "name")) {
-            if (!(priv->vm_name = strdup(param->value.str))) {
-                virReportOOMError();
+            if (!virStrcpy(priv->vm_name, param->value.str, SANLK_NAME_LEN)) {
+                virReportError(VIR_ERR_INTERNAL_ERROR,
+                               _("Domain name '%s' exceeded %d characters"),
+                               param->value.str, SANLK_NAME_LEN);
                 goto error;
             }
         } else if (STREQ(param->key, "pid")) {
@@ -492,16 +490,6 @@ static int virLockManagerSanlockNew(virLockManagerPtr lock,
             priv->vm_uri = param->value.cstr;
         }
     }
-
-    /* Sanlock needs process registration, but the only way how to probe
-     * whether a process has been registered is to inquire the lock.  If
-     * sanlock_inquire() returns -ESRCH, then it is not registered, but
-     * if it returns any other error (rv < 0), then we cannot fail due
-     * to back-compat.  So this whole call is non-fatal, because it's
-     * called from all over the place (it will usually fail).  It merely
-     * updates privateData. */
-    if (sanlock_inquire(-1, priv->vm_pid, 0, &resCount, NULL) >= 0)
-        priv->registered = true;
 
     lock->privateData = priv;
     return 0;
@@ -519,7 +507,6 @@ static void virLockManagerSanlockFree(virLockManagerPtr lock)
     if (!priv)
         return;
 
-    VIR_FREE(priv->vm_name);
     for (i = 0; i < priv->res_count; i++)
         VIR_FREE(priv->res_args[i]);
     VIR_FREE(priv);
@@ -914,49 +901,17 @@ static int virLockManagerSanlockAcquire(virLockManagerPtr lock,
         return -1;
     }
 
-    /* We only initialize 'sock' if we are in the real
-     * child process and we need it to be inherited
-     *
-     * If sock==-1, then sanlock auto-open/closes a
-     * temporary sock
-     */
-    if (priv->vm_pid == getpid()) {
-        VIR_DEBUG("Register sanlock %d", flags);
-        if ((sock = sanlock_register()) < 0) {
-            if (sock <= -200)
-                virReportError(VIR_ERR_INTERNAL_ERROR,
-                               _("Failed to open socket to sanlock daemon: error %d"),
-                               sock);
-            else
-                virReportSystemError(-sock, "%s",
-                                     _("Failed to open socket to sanlock daemon"));
-            goto error;
-        }
-
-        /* Mark the pid as registered */
-        priv->registered = true;
-
-        if (action != VIR_DOMAIN_LOCK_FAILURE_DEFAULT) {
-            char uuidstr[VIR_UUID_STRING_BUFLEN];
-            virUUIDFormat(priv->vm_uuid, uuidstr);
-            if (virLockManagerSanlockRegisterKillscript(sock, priv->vm_uri,
-                                                        uuidstr, action) < 0)
-                goto error;
-        }
-    } else if (!priv->registered) {
-        VIR_DEBUG("Process not registered, not acquiring lock");
-        return 0;
-    }
-
     if (VIR_ALLOC(opt) < 0) {
         virReportOOMError();
-        goto error;
+        return -1;
     }
 
-    /* sanlock doesn't use owner_name for anything, so it's safe to take just
-     * the first SANLK_NAME_LEN - 1 characters from vm_name */
-    ignore_value(virStrncpy(opt->owner_name, priv->vm_name,
-                            SANLK_NAME_LEN - 1, SANLK_NAME_LEN));
+    if (!virStrcpy(opt->owner_name, priv->vm_name, SANLK_NAME_LEN)) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("Domain name '%s' exceeded %d characters"),
+                       priv->vm_name, SANLK_NAME_LEN);
+        goto error;
+    }
 
     if (state && STRNEQ(state, "")) {
         if ((rv = sanlock_state_to_args((char *)state,
@@ -976,6 +931,34 @@ static int virLockManagerSanlockAcquire(virLockManagerPtr lock,
     } else {
         res_args = priv->res_args;
         res_count = priv->res_count;
+    }
+
+    /* We only initialize 'sock' if we are in the real
+     * child process and we need it to be inherited
+     *
+     * If sock==-1, then sanlock auto-open/closes a
+     * temporary sock
+     */
+    if (priv->vm_pid == getpid()) {
+        VIR_DEBUG("Register sanlock %d", flags);
+        if ((sock = sanlock_register()) < 0) {
+            if (sock <= -200)
+                virReportError(VIR_ERR_INTERNAL_ERROR,
+                               _("Failed to open socket to sanlock daemon: error %d"),
+                               sock);
+            else
+                virReportSystemError(-sock, "%s",
+                                     _("Failed to open socket to sanlock daemon"));
+            goto error;
+        }
+
+        if (action != VIR_DOMAIN_LOCK_FAILURE_DEFAULT) {
+            char uuidstr[VIR_UUID_STRING_BUFLEN];
+            virUUIDFormat(priv->vm_uuid, uuidstr);
+            if (virLockManagerSanlockRegisterKillscript(sock, priv->vm_uri,
+                                                        uuidstr, action) < 0)
+                goto error;
+        }
     }
 
     if (!(flags & VIR_LOCK_MANAGER_ACQUIRE_REGISTER_ONLY)) {
@@ -1054,11 +1037,6 @@ static int virLockManagerSanlockRelease(virLockManagerPtr lock,
 
     virCheckFlags(0, -1);
 
-    if (!priv->registered) {
-        VIR_DEBUG("Process not registered, skipping release");
-        return 0;
-    }
-
     if (state) {
         if ((rv = sanlock_inquire(-1, priv->vm_pid, 0, &res_count, state)) < 0) {
             if (rv <= -200)
@@ -1103,12 +1081,6 @@ static int virLockManagerSanlockInquire(virLockManagerPtr lock,
     }
 
     VIR_DEBUG("pid=%d", priv->vm_pid);
-
-    if (!priv->registered) {
-        VIR_DEBUG("Process not registered, skipping inquiry");
-        VIR_FREE(*state);
-        return 0;
-    }
 
     if ((rv = sanlock_inquire(-1, priv->vm_pid, 0, &res_count, state)) < 0) {
         if (rv <= -200)

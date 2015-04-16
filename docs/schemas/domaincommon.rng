@@ -1076,6 +1076,7 @@
                     <value>nbd</value>
                     <value>rbd</value>
                     <value>sheepdog</value>
+                    <value>oflame</value>
                     <value>gluster</value>
                   </choice>
                 </attribute>

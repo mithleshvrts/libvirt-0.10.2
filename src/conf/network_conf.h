@@ -1,7 +1,7 @@
 /*
  * network_conf.h: network XML handling
  *
- * Copyright (C) 2006-2014 Red Hat, Inc.
+ * Copyright (C) 2006-2008, 2012 Red Hat, Inc.
  * Copyright (C) 2006-2008 Daniel P. Berrange
  *
  * This library is free software; you can redistribute it and/or
@@ -101,23 +101,10 @@ struct _virNetworkDNSHostsDef {
     char **names;
 };
 
-/* If forwardPlainNames is 0 (default), that is equivalent to "yes",
- * but won't be encoded in newly formatted XML.
- */
-typedef enum {
-    VIR_NETWORK_DNS_FORWARD_PLAIN_NAMES_DEFAULT = 0, /* silent "yes" */
-    VIR_NETWORK_DNS_FORWARD_PLAIN_NAMES_YES,
-    VIR_NETWORK_DNS_FORWARD_PLAIN_NAMES_NO,
-
-    VIR_NETWORK_DNS_FORWARD_PLAIN_NAMES_LAST,
-} virNetworkDNSForwardPlainNamesType;
-
-VIR_ENUM_DECL(virNetworkDNSForwardPlainNames)
-
 typedef struct _virNetworkDNSHostsDef *virNetworkDNSHostsDefPtr;
 
 struct _virNetworkDNSDef {
-    int forwardPlainNames; /* enum virNetworkDNSForwardPlainNamesType */
+    bool forwardPlainNames;
     unsigned int ntxtrecords;
     virNetworkDNSTxtRecordsDefPtr txtrecords;
     unsigned int nhosts;

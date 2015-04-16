@@ -326,7 +326,7 @@ libxlVmCleanup(libxlDriverPrivatePtr driver,
     /* Remove any cputune settings */
     if (vm->def->cputune.nvcpupin) {
         for (i = 0; i < vm->def->cputune.nvcpupin; ++i) {
-            virBitmapFree(vm->def->cputune.vcpupin[i]->cpumask);
+            VIR_FREE(vm->def->cputune.vcpupin[i]->cpumask);
             VIR_FREE(vm->def->cputune.vcpupin[i]);
         }
         VIR_FREE(vm->def->cputune.vcpupin);

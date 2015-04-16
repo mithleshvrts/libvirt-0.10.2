@@ -38,9 +38,9 @@ typedef char *remote_nonnull_string;
 typedef remote_nonnull_string *remote_string;
 #define REMOTE_DOMAIN_ID_LIST_MAX 16384
 #define REMOTE_DOMAIN_NAME_LIST_MAX 16384
-#define REMOTE_CPUMAP_MAX 256
-#define REMOTE_VCPUINFO_MAX 2048
-#define REMOTE_CPUMAPS_MAX 16384
+#define REMOTE_CPUMAP_MAX 2048
+#define REMOTE_VCPUINFO_MAX 16384
+#define REMOTE_CPUMAPS_MAX 8388608
 #define REMOTE_MIGRATE_COOKIE_MAX 16384
 #define REMOTE_NETWORK_NAME_LIST_MAX 16384
 #define REMOTE_INTERFACE_NAME_LIST_MAX 16384
@@ -2578,6 +2578,11 @@ struct remote_domain_event_balloon_change_msg {
 };
 typedef struct remote_domain_event_balloon_change_msg remote_domain_event_balloon_change_msg;
 
+struct remote_domain_event_pmsuspend_disk_msg {
+        remote_nonnull_domain dom;
+};
+typedef struct remote_domain_event_pmsuspend_disk_msg remote_domain_event_pmsuspend_disk_msg;
+
 struct remote_domain_managed_save_args {
         remote_nonnull_domain dom;
         u_int flags;
@@ -3431,6 +3436,7 @@ enum remote_procedure {
         REMOTE_PROC_NODE_GET_MEMORY_PARAMETERS = 289,
         REMOTE_PROC_DOMAIN_BLOCK_COMMIT = 290,
         REMOTE_PROC_NETWORK_UPDATE = 291,
+        REMOTE_PROC_DOMAIN_EVENT_PMSUSPEND_DISK = 292,
 };
 typedef enum remote_procedure remote_procedure;
 
@@ -3833,6 +3839,7 @@ extern  bool_t xdr_remote_domain_event_tray_change_msg (XDR *, remote_domain_eve
 extern  bool_t xdr_remote_domain_event_pmwakeup_msg (XDR *, remote_domain_event_pmwakeup_msg*);
 extern  bool_t xdr_remote_domain_event_pmsuspend_msg (XDR *, remote_domain_event_pmsuspend_msg*);
 extern  bool_t xdr_remote_domain_event_balloon_change_msg (XDR *, remote_domain_event_balloon_change_msg*);
+extern  bool_t xdr_remote_domain_event_pmsuspend_disk_msg (XDR *, remote_domain_event_pmsuspend_disk_msg*);
 extern  bool_t xdr_remote_domain_managed_save_args (XDR *, remote_domain_managed_save_args*);
 extern  bool_t xdr_remote_domain_has_managed_save_image_args (XDR *, remote_domain_has_managed_save_image_args*);
 extern  bool_t xdr_remote_domain_has_managed_save_image_ret (XDR *, remote_domain_has_managed_save_image_ret*);
@@ -4309,6 +4316,7 @@ extern bool_t xdr_remote_domain_event_tray_change_msg ();
 extern bool_t xdr_remote_domain_event_pmwakeup_msg ();
 extern bool_t xdr_remote_domain_event_pmsuspend_msg ();
 extern bool_t xdr_remote_domain_event_balloon_change_msg ();
+extern bool_t xdr_remote_domain_event_pmsuspend_disk_msg ();
 extern bool_t xdr_remote_domain_managed_save_args ();
 extern bool_t xdr_remote_domain_has_managed_save_image_args ();
 extern bool_t xdr_remote_domain_has_managed_save_image_ret ();

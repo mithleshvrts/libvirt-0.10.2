@@ -2053,7 +2053,7 @@ qemuDomainDestroyFlags(virDomainPtr dom,
                        unsigned int flags)
 {
     struct qemud_driver *driver = dom->conn->privateData;
-    virDomainObjPtr vm = NULL;
+    virDomainObjPtr vm;
     int ret = -1;
     virDomainEventPtr event = NULL;
     qemuDomainObjPrivatePtr priv;
@@ -2074,9 +2074,6 @@ qemuDomainDestroyFlags(virDomainPtr dom,
 
     qemuDomainSetFakeReboot(driver, vm, false);
 
-    /* Make sure @vm doesn't disappear during our API.
-     * See RHBZ 1030736 for more info */
-    virObjectRef(vm);
 
     /* We need to prevent monitor EOF callback from doing our work (and sending
      * misleading events) while the vm is unlocked inside BeginJob/ProcessKill API
@@ -2134,8 +2131,6 @@ endjob:
         vm = NULL;
 
 cleanup:
-    if (!virObjectUnref(vm))
-        vm = NULL;
     if (vm)
         virDomainObjUnlock(vm);
     if (event)
@@ -4054,6 +4049,8 @@ static int qemudDomainHotplugVcpus(struct qemud_driver *driver,
 	}
     } else {
         for (i = oldvcpus - 1; i >= nvcpus; i--) {
+            virDomainVcpuPinDefPtr vcpupin = NULL;
+
             if (cgroup_available) {
                 int rv = -1;
 
@@ -4072,7 +4069,9 @@ static int qemudDomainHotplugVcpus(struct qemud_driver *driver,
             }
 
             /* Free vcpupin setting */
-            ignore_value(virDomainVcpuPinDel(vm->def, i));
+            if ((vcpupin = virDomainLookupVcpuPin(vm->def, i))) {
+                VIR_FREE(vcpupin);
+            }
         }
     }
 
@@ -7479,11 +7478,9 @@ qemuDomainSetBlkioParameters(virDomainPtr dom,
     qemuDriverLock(driver);
     vm = virDomainFindByUUID(&driver->domains, dom->uuid);
 
-    if (!vm) {
-        char uuidstr[VIR_UUID_STRING_BUFLEN];
-        virUUIDFormat(dom->uuid, uuidstr);
-        virReportError(VIR_ERR_NO_DOMAIN,
-                       _("no domain with matching uuid '%s'"), uuidstr);
+    if (vm == NULL) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("No such domain %s"), dom->uuid);
         goto cleanup;
     }
 
@@ -7634,11 +7631,10 @@ qemuDomainGetBlkioParameters(virDomainPtr dom,
     flags &= ~VIR_TYPED_PARAM_STRING_OKAY;
 
     vm = virDomainFindByUUID(&driver->domains, dom->uuid);
-    if (!vm) {
-        char uuidstr[VIR_UUID_STRING_BUFLEN];
-        virUUIDFormat(dom->uuid, uuidstr);
-        virReportError(VIR_ERR_NO_DOMAIN,
-                       _("no domain with matching uuid '%s'"), uuidstr);
+
+    if (vm == NULL) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("No such domain %s"), dom->uuid);
         goto cleanup;
     }
 
@@ -7831,11 +7827,10 @@ qemuDomainSetMemoryParameters(virDomainPtr dom,
     qemuDriverLock(driver);
 
     vm = virDomainFindByUUID(&driver->domains, dom->uuid);
-    if (!vm) {
-        char uuidstr[VIR_UUID_STRING_BUFLEN];
-        virUUIDFormat(dom->uuid, uuidstr);
-        virReportError(VIR_ERR_NO_DOMAIN,
-                       _("no domain with matching uuid '%s'"), uuidstr);
+
+    if (vm == NULL) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("No such domain %s"), dom->uuid);
         goto cleanup;
     }
 
@@ -7989,11 +7984,10 @@ qemuDomainGetMemoryParameters(virDomainPtr dom,
     flags &= ~VIR_TYPED_PARAM_STRING_OKAY;
 
     vm = virDomainFindByUUID(&driver->domains, dom->uuid);
-    if (!vm) {
-        char uuidstr[VIR_UUID_STRING_BUFLEN];
-        virUUIDFormat(dom->uuid, uuidstr);
-        virReportError(VIR_ERR_NO_DOMAIN,
-                       _("no domain with matching uuid '%s'"), uuidstr);
+
+    if (vm == NULL) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("No such domain %s"), dom->uuid);
         goto cleanup;
     }
 
@@ -8127,109 +8121,6 @@ cleanup:
 }
 
 static int
-qemuDomainSetNumaParamsLive(virDomainObjPtr vm,
-                            virCgroupPtr group,
-                            virCapsPtr caps,
-                            virBitmapPtr nodeset)
-{
-    virCgroupPtr cgroup_temp = NULL;
-    virBitmapPtr temp_nodeset = NULL;
-    qemuDomainObjPrivatePtr priv = vm->privateData;
-    char *nodeset_str = NULL;
-    size_t i = 0;
-    int ret = -1;
-    int rc = 0;
-
-    if (vm->def->numatune.memory.mode != VIR_DOMAIN_NUMATUNE_MEM_STRICT) {
-        virReportError(VIR_ERR_OPERATION_INVALID, "%s",
-                       _("change of nodeset for running domain "
-                         "requires strict numa mode"));
-        goto cleanup;
-    }
-
-    /*Get Exisitng nodeset values */
-    if ((rc = virCgroupGetCpusetMems(group, &nodeset_str)) < 0) {
-        virReportSystemError(-rc, "%s", _("unable to get numa nodeset"));
-        goto cleanup;
-    }
-    if (virBitmapParse(nodeset_str, 0, &temp_nodeset,
-                       VIR_DOMAIN_CPUMASK_LEN) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Failed to parse existing nodeset values"));
-        goto cleanup;
-    }
-    VIR_FREE(nodeset_str);
-
-    for (i = 0; i < caps->host.nnumaCell; i++) {
-        bool result;
-        if (virBitmapGetBit(nodeset, i, &result) < 0) {
-            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                           _("Failed to get cpuset bit values"));
-            goto cleanup;
-        }
-        if (result && (virBitmapSetBit(temp_nodeset, i) < 0)) {
-            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                           _("Failed to set temporary cpuset bit values"));
-            goto cleanup;
-        }
-    }
-
-    if (!(nodeset_str = virBitmapFormat(temp_nodeset))) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Failed to format nodeset"));
-        goto cleanup;
-    }
-
-    if ((rc = virCgroupSetCpusetMems(group, nodeset_str)) < 0) {
-        virReportSystemError(-rc, _("Failed to set cpuset.mems to %s"),
-                             nodeset_str);
-        goto cleanup;
-    }
-    VIR_FREE(nodeset_str);
-
-    /* Ensure the cpuset string is formated before passing to cgroup */
-    if (!(nodeset_str = virBitmapFormat(nodeset))) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Failed to format nodeset"));
-        goto cleanup;
-    }
-
-    for (i = 0; i < priv->nvcpupids; i++) {
-        if ((rc = virCgroupForVcpu(group, i, &cgroup_temp, false)) < 0) {
-            virReportSystemError(-rc, _("Unable to access vcpu cgroup for "
-                                        "%s (vcpu: %zu)"),
-                                 vm->def->name, i);
-        }
-        if ((rc = virCgroupSetCpusetMems(cgroup_temp, nodeset_str)) < 0) {
-            virReportSystemError(-rc, _("Failed to set cpuset.mems to %s"),
-                                 nodeset_str);
-            goto cleanup;
-        }
-        virCgroupFree(&cgroup_temp);
-    }
-
-    if ((rc = virCgroupForEmulator(group, &cgroup_temp, false)) < 0) {
-        virReportSystemError(-rc, _("Unable to find emulator cgroup for %s"),
-                             vm->def->name);
-        goto cleanup;
-    }
-    if ((rc = virCgroupSetCpusetMems(cgroup_temp, nodeset_str)) < 0 ||
-        (rc = virCgroupSetCpusetMems(group, nodeset_str)) < 0) {
-        virReportSystemError(-rc, _("Failed to set cpuset.mems to %s"),
-                             nodeset_str);
-        goto cleanup;
-    }
-
-    ret = 0;
- cleanup:
-    VIR_FREE(nodeset_str);
-    virBitmapFree(temp_nodeset);
-    virCgroupFree(&cgroup_temp);
-
-    return ret;
-}
-
-static int
 qemuDomainSetNumaParameters(virDomainPtr dom,
                             virTypedParameterPtr params,
                             int nparams,
@@ -8244,7 +8135,6 @@ qemuDomainSetNumaParameters(virDomainPtr dom,
 
     virCheckFlags(VIR_DOMAIN_AFFECT_LIVE |
                   VIR_DOMAIN_AFFECT_CONFIG, -1);
-
     if (virTypedParameterArrayValidate(params, nparams,
                                        VIR_DOMAIN_NUMA_MODE,
                                        VIR_TYPED_PARAM_INT,
@@ -8256,11 +8146,10 @@ qemuDomainSetNumaParameters(virDomainPtr dom,
     qemuDriverLock(driver);
 
     vm = virDomainFindByUUID(&driver->domains, dom->uuid);
-    if (!vm) {
-        char uuidstr[VIR_UUID_STRING_BUFLEN];
-        virUUIDFormat(dom->uuid, uuidstr);
-        virReportError(VIR_ERR_NO_DOMAIN,
-                       _("no domain with matching uuid '%s'"), uuidstr);
+
+    if (vm == NULL) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("No such domain %s"), dom->uuid);
         goto cleanup;
     }
 
@@ -8270,8 +8159,8 @@ qemuDomainSetNumaParameters(virDomainPtr dom,
 
     if (flags & VIR_DOMAIN_AFFECT_LIVE) {
         if (!qemuCgroupControllerActive(driver, VIR_CGROUP_CONTROLLER_CPUSET)) {
-            virReportError(VIR_ERR_OPERATION_INVALID, "%s",
-                           _("cgroup cpuset controller is not mounted"));
+            virReportError(VIR_ERR_OPERATION_INVALID,
+                           "%s", _("cgroup cpuset controller is not mounted"));
             goto cleanup;
         }
 
@@ -8283,37 +8172,65 @@ qemuDomainSetNumaParameters(virDomainPtr dom,
         }
     }
 
+    ret = 0;
     for (i = 0; i < nparams; i++) {
         virTypedParameterPtr param = &params[i];
 
         if (STREQ(param->field, VIR_DOMAIN_NUMA_MODE)) {
-            int mode = param->value.i;
-
             if ((flags & VIR_DOMAIN_AFFECT_LIVE) &&
-                vm->def->numatune.memory.mode != mode) {
+                vm->def->numatune.memory.mode != params[i].value.i) {
                 virReportError(VIR_ERR_OPERATION_INVALID, "%s",
                                _("can't change numa mode for running domain"));
+                ret = -1;
                 goto cleanup;
             }
 
-            if (flags & VIR_DOMAIN_AFFECT_CONFIG)
-                persistentDef->numatune.memory.mode = mode;
-
+            if (flags & VIR_DOMAIN_AFFECT_CONFIG) {
+                persistentDef->numatune.memory.mode = params[i].value.i;
+            }
         } else if (STREQ(param->field, VIR_DOMAIN_NUMA_NODESET)) {
+            int rc;
             virBitmapPtr nodeset = NULL;
+            char *nodeset_str = NULL;
 
-            if (virBitmapParse(param->value.s, 0, &nodeset,
+            if (virBitmapParse(params[i].value.s,
+                               0, &nodeset,
                                VIR_DOMAIN_CPUMASK_LEN) < 0) {
                 virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                                _("Failed to parse nodeset"));
-                goto cleanup;
+                ret = -1;
+                continue;
             }
 
             if (flags & VIR_DOMAIN_AFFECT_LIVE) {
-                if (qemuDomainSetNumaParamsLive(vm, group, driver->caps, nodeset) < 0) {
+                if (vm->def->numatune.memory.mode !=
+                    VIR_DOMAIN_NUMATUNE_MEM_STRICT) {
+                    virReportError(VIR_ERR_OPERATION_INVALID, "%s",
+                                   _("change of nodeset for running domain "
+                                     "requires strict numa mode"));
                     virBitmapFree(nodeset);
-                    goto cleanup;
+                    ret = -1;
+                    continue;
                 }
+
+                /* Ensure the cpuset string is formated before passing to cgroup */
+                if (!(nodeset_str = virBitmapFormat(nodeset))) {
+                    virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                                   _("Failed to format nodeset"));
+                    virBitmapFree(nodeset);
+                    ret = -1;
+                    continue;
+                }
+
+                if ((rc = virCgroupSetCpusetMems(group, nodeset_str) != 0)) {
+                    virReportSystemError(-rc, "%s",
+                                         _("unable to set numa tunable"));
+                    virBitmapFree(nodeset);
+                    VIR_FREE(nodeset_str);
+                    ret = -1;
+                    continue;
+                }
+                VIR_FREE(nodeset_str);
 
                 /* update vm->def here so that dumpxml can read the new
                  * values from vm->def. */
@@ -8341,10 +8258,8 @@ qemuDomainSetNumaParameters(virDomainPtr dom,
             persistentDef->numatune.memory.placement_mode =
                 VIR_DOMAIN_NUMATUNE_MEM_PLACEMENT_MODE_AUTO;
         if (virDomainSaveConfig(driver->configDir, persistentDef) < 0)
-            goto cleanup;
+            ret = -1;
     }
-
-    ret = 0;
 
 cleanup:
     virCgroupFree(&group);
@@ -8381,11 +8296,10 @@ qemuDomainGetNumaParameters(virDomainPtr dom,
     flags &= ~VIR_TYPED_PARAM_STRING_OKAY;
 
     vm = virDomainFindByUUID(&driver->domains, dom->uuid);
-    if (!vm) {
-        char uuidstr[VIR_UUID_STRING_BUFLEN];
-        virUUIDFormat(dom->uuid, uuidstr);
-        virReportError(VIR_ERR_NO_DOMAIN,
-                       _("no domain with matching uuid '%s'"), uuidstr);
+
+    if (vm == NULL) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("No such domain %s"), dom->uuid);
         goto cleanup;
     }
 
@@ -8587,11 +8501,10 @@ qemuSetSchedulerParametersFlags(virDomainPtr dom,
     qemuDriverLock(driver);
 
     vm = virDomainFindByUUID(&driver->domains, dom->uuid);
-    if (!vm) {
-        char uuidstr[VIR_UUID_STRING_BUFLEN];
-        virUUIDFormat(dom->uuid, uuidstr);
-        virReportError(VIR_ERR_NO_DOMAIN,
-                       _("no domain with matching uuid '%s'"), uuidstr);
+
+    if (vm == NULL) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("No such domain %s"), dom->uuid);
         goto cleanup;
     }
 
@@ -8871,11 +8784,10 @@ qemuGetSchedulerParametersFlags(virDomainPtr dom,
     }
 
     vm = virDomainFindByUUID(&driver->domains, dom->uuid);
-    if (!vm) {
-        char uuidstr[VIR_UUID_STRING_BUFLEN];
-        virUUIDFormat(dom->uuid, uuidstr);
-        virReportError(VIR_ERR_NO_DOMAIN,
-                       _("no domain with matching uuid '%s'"), uuidstr);
+
+    if (vm == NULL) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("No such domain %s"), dom->uuid);
         goto cleanup;
     }
 
@@ -9109,6 +9021,26 @@ qemuDomainBlockStats(virDomainPtr dom,
         goto cleanup;
     }
 
+    if (!virDomainObjIsActive(vm)) {
+        virReportError(VIR_ERR_OPERATION_INVALID,
+                       "%s", _("domain is not running"));
+        goto cleanup;
+    }
+
+    if ((i = virDomainDiskIndexByName(vm->def, path, false)) < 0) {
+        virReportError(VIR_ERR_INVALID_ARG,
+                       _("invalid path: %s"), path);
+        goto cleanup;
+    }
+    disk = vm->def->disks[i];
+
+    if (!disk->info.alias) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("missing disk device alias name for %s"), disk->dst);
+        goto cleanup;
+    }
+
+    priv = vm->privateData;
     if (qemuDomainObjBeginJob(driver, vm, QEMU_JOB_QUERY) < 0)
         goto cleanup;
 
@@ -9117,21 +9049,6 @@ qemuDomainBlockStats(virDomainPtr dom,
                        "%s", _("domain is not running"));
         goto endjob;
     }
-
-    if ((i = virDomainDiskIndexByName(vm->def, path, false)) < 0) {
-        virReportError(VIR_ERR_INVALID_ARG,
-                       _("invalid path: %s"), path);
-        goto endjob;
-    }
-    disk = vm->def->disks[i];
-
-    if (!disk->info.alias) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("missing disk device alias name for %s"), disk->dst);
-        goto endjob;
-    }
-
-    priv = vm->privateData;
 
     qemuDomainObjEnterMonitor(driver, vm);
     ret = qemuMonitorGetBlockStatsInfo(priv->mon,
@@ -9426,11 +9343,10 @@ qemuDomainSetInterfaceParameters(virDomainPtr dom,
 
     qemuDriverLock(driver);
     vm = virDomainFindByUUID(&driver->domains, dom->uuid);
-    if (!vm) {
-        char uuidstr[VIR_UUID_STRING_BUFLEN];
-        virUUIDFormat(dom->uuid, uuidstr);
-        virReportError(VIR_ERR_NO_DOMAIN,
-                       _("no domain with matching uuid '%s'"), uuidstr);
+
+    if (vm == NULL) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("No such domain %s"), dom->uuid);
         goto cleanup;
     }
 
@@ -9590,11 +9506,10 @@ qemuDomainGetInterfaceParameters(virDomainPtr dom,
     flags &= ~VIR_TYPED_PARAM_STRING_OKAY;
 
     vm = virDomainFindByUUID(&driver->domains, dom->uuid);
-    if (!vm) {
-        char uuidstr[VIR_UUID_STRING_BUFLEN];
-        virUUIDFormat(dom->uuid, uuidstr);
-        virReportError(VIR_ERR_NO_DOMAIN,
-                       _("no domain with matching uuid '%s'"), uuidstr);
+
+    if (vm == NULL) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("No such domain %s"), dom->uuid);
         goto cleanup;
     }
 
@@ -9924,8 +9839,6 @@ static int qemuDomainGetBlockInfo(virDomainPtr dom,
     struct stat sb;
     int i;
     int format;
-    int activeFail = false;
-    char *alias = NULL;
 
     virCheckFlags(0, -1);
 
@@ -10028,27 +9941,14 @@ static int qemuDomainGetBlockInfo(virDomainPtr dom,
     /* Set default value .. */
     info->allocation = info->physical;
 
-    /* ..but if guest is not using raw disk format and on a block device,
-     * then query highest allocated extent from QEMU
-     */
+    /* ..but if guest is running & not using raw
+       disk format and on a block device, then query
+       highest allocated extent from QEMU */
     if (disk->type == VIR_DOMAIN_DISK_TYPE_BLOCK &&
         format != VIR_STORAGE_FILE_RAW &&
-        S_ISBLK(sb.st_mode)) {
+        S_ISBLK(sb.st_mode) &&
+        virDomainObjIsActive(vm)) {
         qemuDomainObjPrivatePtr priv = vm->privateData;
-
-        /* If the guest is not running, then success/failure return
-         * depends on whether domain is persistent
-         */
-        if (!virDomainObjIsActive(vm)) {
-            activeFail = true;
-            ret = 0;
-            goto cleanup;
-        }
-
-        if (!(alias = strdup(disk->info.alias))) {
-            virReportOOMError();
-            goto cleanup;
-        }
 
         if (qemuDomainObjBeginJob(driver, vm, QEMU_JOB_QUERY) < 0)
             goto cleanup;
@@ -10056,11 +9956,10 @@ static int qemuDomainGetBlockInfo(virDomainPtr dom,
         if (virDomainObjIsActive(vm)) {
             qemuDomainObjEnterMonitor(driver, vm);
             ret = qemuMonitorGetBlockExtent(priv->mon,
-                                            alias,
+                                            disk->info.alias,
                                             &info->allocation);
             qemuDomainObjExitMonitor(driver, vm);
         } else {
-            activeFail = true;
             ret = 0;
         }
 
@@ -10071,18 +9970,8 @@ static int qemuDomainGetBlockInfo(virDomainPtr dom,
     }
 
 cleanup:
-    VIR_FREE(alias);
     virStorageFileFreeMetadata(meta);
     VIR_FORCE_CLOSE(fd);
-
-    /* If we failed to get data from a domain because it's inactive and
-     * it's not a persistent domain, then force failure.
-     */
-    if (activeFail && vm && !vm->persistent) {
-        virReportError(VIR_ERR_OPERATION_INVALID, "%s",
-                       _("domain is not running"));
-        ret = -1;
-    }
     if (vm)
         virDomainObjUnlock(vm);
     return ret;
@@ -13706,25 +13595,16 @@ qemuDomainBlockJobImpl(virDomainPtr dom, const char *path, const char *base,
         goto cleanup;
     }
 
-    if (qemuDomainObjBeginJobWithDriver(driver, vm, QEMU_JOB_MODIFY) < 0)
-        goto cleanup;
-
-    if (!virDomainObjIsActive(vm)) {
-        virReportError(VIR_ERR_OPERATION_INVALID, "%s",
-                       _("domain is not running"));
-        goto endjob;
-    }
-
     device = qemuDiskPathToAlias(vm, path, &idx);
     if (!device)
-        goto endjob;
+        goto cleanup;
     disk = vm->def->disks[idx];
 
     if (mode == BLOCK_JOB_PULL && disk->mirror) {
         virReportError(VIR_ERR_BLOCK_COPY_ACTIVE,
                        _("disk '%s' already in active block copy job"),
                        disk->dst);
-        goto endjob;
+        goto cleanup;
     }
     if (mode == BLOCK_JOB_ABORT &&
         (flags & VIR_DOMAIN_BLOCK_JOB_ABORT_PIVOT) &&
@@ -13732,6 +13612,15 @@ qemuDomainBlockJobImpl(virDomainPtr dom, const char *path, const char *base,
         virReportError(VIR_ERR_OPERATION_INVALID,
                        _("pivot of disk '%s' requires an active copy job"),
                        disk->dst);
+        goto cleanup;
+    }
+
+    if (qemuDomainObjBeginJobWithDriver(driver, vm, QEMU_JOB_MODIFY) < 0)
+        goto cleanup;
+
+    if (!virDomainObjIsActive(vm)) {
+        virReportError(VIR_ERR_OPERATION_INVALID, "%s",
+                       _("domain is not running"));
         goto endjob;
     }
 
@@ -13863,7 +13752,7 @@ qemuDomainBlockCopy(virDomainPtr dom, const char *path,
     virDomainObjPtr vm;
     qemuDomainObjPrivatePtr priv;
     char *device = NULL;
-    virDomainDiskDefPtr disk = NULL;
+    virDomainDiskDefPtr disk;
     int ret = -1;
     int idx;
     struct stat st;
@@ -13879,13 +13768,10 @@ qemuDomainBlockCopy(virDomainPtr dom, const char *path,
         goto cleanup;
     priv = vm->privateData;
 
-    if (qemuDomainObjBeginJob(driver, vm, QEMU_JOB_MODIFY) < 0)
-        goto cleanup;
-
     if (!virDomainObjIsActive(vm)) {
         virReportError(VIR_ERR_OPERATION_INVALID, "%s",
                        _("domain is not running"));
-        goto endjob;
+        goto cleanup;
     }
     if (qemuCgroupControllerActive(driver, VIR_CGROUP_CONTROLLER_DEVICES) &&
         virCgroupForDomain(driver->cgroup, vm->def->name, &cgroup, 0) < 0) {
@@ -13897,21 +13783,21 @@ qemuDomainBlockCopy(virDomainPtr dom, const char *path,
 
     device = qemuDiskPathToAlias(vm, path, &idx);
     if (!device) {
-        goto endjob;
+        goto cleanup;
     }
     disk = vm->def->disks[idx];
     if (disk->mirror) {
         virReportError(VIR_ERR_BLOCK_COPY_ACTIVE,
                        _("disk '%s' already in active block copy job"),
                        disk->dst);
-        goto endjob;
+        goto cleanup;
     }
 
     if (!(qemuCapsGet(priv->caps, QEMU_CAPS_DRIVE_MIRROR) &&
           qemuCapsGet(priv->caps, QEMU_CAPS_BLOCKJOB_ASYNC))) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                        _("block copy is not supported with this QEMU binary"));
-        goto endjob;
+        goto cleanup;
     }
     if (vm->persistent) {
         /* XXX if qemu ever lets us start a new domain with mirroring
@@ -13920,9 +13806,17 @@ qemuDomainBlockCopy(virDomainPtr dom, const char *path,
          * this on persistent domains.  */
         virReportError(VIR_ERR_OPERATION_INVALID, "%s",
                        _("domain is not transient"));
-        goto endjob;
+        goto cleanup;
     }
 
+    if (qemuDomainObjBeginJob(driver, vm, QEMU_JOB_MODIFY) < 0)
+        goto cleanup;
+
+    if (!virDomainObjIsActive(vm)) {
+        virReportError(VIR_ERR_OPERATION_INVALID, "%s",
+                       _("domain is not running"));
+        goto endjob;
+    }
     if (qemuDomainDetermineDiskChain(driver, disk, false) < 0)
         goto endjob;
 
@@ -14014,7 +13908,7 @@ qemuDomainBlockCopy(virDomainPtr dom, const char *path,
 endjob:
     if (need_unlink && unlink(dest))
         VIR_WARN("unable to unlink just-created %s", dest);
-    if (ret < 0 && disk)
+    if (ret < 0)
         disk->mirrorFormat = VIR_STORAGE_FILE_NONE;
     VIR_FREE(mirror);
     if (qemuDomainObjEndJob(driver, vm) == 0) {
@@ -14490,17 +14384,18 @@ qemuDomainGetBlockIoTune(virDomainPtr dom,
         goto cleanup;
     }
 
+    device = qemuDiskPathToAlias(vm, disk, NULL);
+
+    if (!device) {
+        goto cleanup;
+    }
+
     if (qemuDomainObjBeginJobWithDriver(driver, vm, QEMU_JOB_MODIFY) < 0)
         goto cleanup;
 
     if (virDomainLiveConfigHelperMethod(driver->caps, vm, &flags,
                                         &persistentDef) < 0)
         goto endjob;
-
-    device = qemuDiskPathToAlias(vm, disk, NULL);
-    if (!device) {
-        goto endjob;
-    }
 
     if (flags & VIR_DOMAIN_AFFECT_LIVE) {
         priv = vm->privateData;
@@ -15099,11 +14994,9 @@ qemuDomainGetCPUStats(virDomainPtr domain,
     qemuDriverLock(driver);
 
     vm = virDomainFindByUUID(&driver->domains, domain->uuid);
-    if (!vm) {
-        char uuidstr[VIR_UUID_STRING_BUFLEN];
-        virUUIDFormat(domain->uuid, uuidstr);
-        virReportError(VIR_ERR_NO_DOMAIN,
-                       _("no domain with matching uuid '%s'"), uuidstr);
+    if (vm == NULL) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("No such domain %s"), domain->uuid);
         goto cleanup;
     }
 

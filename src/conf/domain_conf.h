@@ -461,6 +461,7 @@ enum virDomainDiskProtocol {
     VIR_DOMAIN_DISK_PROTOCOL_NBD,
     VIR_DOMAIN_DISK_PROTOCOL_RBD,
     VIR_DOMAIN_DISK_PROTOCOL_SHEEPDOG,
+    VIR_DOMAIN_DISK_PROTOCOL_OFLAME,
     VIR_DOMAIN_DISK_PROTOCOL_GLUSTER,
 
     VIR_DOMAIN_DISK_PROTOCOL_LAST
@@ -2358,5 +2359,8 @@ VIR_ENUM_DECL(virDomainStartupPolicy)
 
 int virDomainList(virConnectPtr conn, virHashTablePtr domobjs,
                   virDomainPtr **domains, unsigned int flags);
+
+virDomainVcpuPinDefPtr virDomainLookupVcpuPin(virDomainDefPtr def,
+                                              int vcpuid);
 
 #endif /* __DOMAIN_CONF_H */

@@ -492,8 +492,7 @@ mymain(void)
             QEMU_CAPS_DEVICE_QXL,
             QEMU_CAPS_DEVICE_VGA,
             QEMU_CAPS_DEVICE_CIRRUS_VGA,
-            QEMU_CAPS_DEVICE_VMWARE_SVGA,
-            QEMU_CAPS_HOST_PCI_MULTIDOMAIN);
+            QEMU_CAPS_DEVICE_VMWARE_SVGA);
     DO_TEST("qemu-kvm-0.12.1.2-rhel61", 12001, 1, 0,
             QEMU_CAPS_VNC_COLON,
             QEMU_CAPS_NO_REBOOT,

@@ -979,9 +979,6 @@
 /* Define to 1 if you have the `inet_pton' function. */
 #undef HAVE_INET_PTON
 
-/* Define to 1 if you have the 'initgroups' function. */
-#undef HAVE_INITGROUPS
-
 /* Define to 1 if the compiler supports one of the keywords 'inline',
    '__inline__', '__inline' and effectively inlines functions marked as such.
    */
@@ -1268,6 +1265,9 @@
 /* Define to 1 if the system has the type `posix_spawn_file_actions_t'. */
 #undef HAVE_POSIX_SPAWN_FILE_ACTIONS_T
 
+/* Define to 1 if you have the 'prlimit' function. */
+#undef HAVE_PRLIMIT
+
 /* Define to 1 if you have the `pstat_getdynamic' function. */
 #undef HAVE_PSTAT_GETDYNAMIC
 
@@ -1359,6 +1359,9 @@
 /* whether Sanlock plugin for lock management is available */
 #undef HAVE_SANLOCK
 
+/* whether sanlock supports sanlock_inq_lockspace */
+#undef HAVE_SANLOCK_INQ_LOCKSPACE
+
 /* whether Cyrus SASL is available for authentication */
 #undef HAVE_SASL
 
@@ -1401,10 +1404,13 @@
 /* Define to 1 if you have the `seteuid' function. */
 #undef HAVE_SETEUID
 
+/* Define to 1 if you have the 'setgroups' function. */
+#undef HAVE_SETGROUPS
+
 /* Define to 1 if you have the `setlocale' function. */
 #undef HAVE_SETLOCALE
 
-/* Define to 1 if you have the `setrlimit' function. */
+/* Define to 1 if you have the 'setrlimit' function. */
 #undef HAVE_SETRLIMIT
 
 /* Define to 1 if you have the 'shutdown' function. */
@@ -1512,46 +1518,46 @@
 /* Defined if struct ifreq exists in net/if.h */
 #undef HAVE_STRUCT_IFREQ
 
-/* Define to 1 if `decimal_point' is a member of `struct lconv'. */
+/* Define to 1 if `decimal_point' is member of `struct lconv'. */
 #undef HAVE_STRUCT_LCONV_DECIMAL_POINT
 
-/* Define to 1 if `msg_accrights' is a member of `struct msghdr'. */
+/* Define to 1 if `msg_accrights' is member of `struct msghdr'. */
 #undef HAVE_STRUCT_MSGHDR_MSG_ACCRIGHTS
 
 /* Define to 1 if the system has the type `struct random_data'. */
 #undef HAVE_STRUCT_RANDOM_DATA
 
-/* Define to 1 if `sa_sigaction' is a member of `struct sigaction'. */
+/* Define to 1 if `sa_sigaction' is member of `struct sigaction'. */
 #undef HAVE_STRUCT_SIGACTION_SA_SIGACTION
 
-/* Define to 1 if `sa_len' is a member of `struct sockaddr'. */
+/* Define to 1 if `sa_len' is member of `struct sockaddr'. */
 #undef HAVE_STRUCT_SOCKADDR_SA_LEN
 
 /* Define to 1 if the system has the type `struct sockaddr_storage'. */
 #undef HAVE_STRUCT_SOCKADDR_STORAGE
 
-/* Define to 1 if `ss_family' is a member of `struct sockaddr_storage'. */
+/* Define to 1 if `ss_family' is member of `struct sockaddr_storage'. */
 #undef HAVE_STRUCT_SOCKADDR_STORAGE_SS_FAMILY
 
-/* Define to 1 if `st_atimensec' is a member of `struct stat'. */
+/* Define to 1 if `st_atimensec' is member of `struct stat'. */
 #undef HAVE_STRUCT_STAT_ST_ATIMENSEC
 
-/* Define to 1 if `st_atimespec.tv_nsec' is a member of `struct stat'. */
+/* Define to 1 if `st_atimespec.tv_nsec' is member of `struct stat'. */
 #undef HAVE_STRUCT_STAT_ST_ATIMESPEC_TV_NSEC
 
-/* Define to 1 if `st_atim.st__tim.tv_nsec' is a member of `struct stat'. */
+/* Define to 1 if `st_atim.st__tim.tv_nsec' is member of `struct stat'. */
 #undef HAVE_STRUCT_STAT_ST_ATIM_ST__TIM_TV_NSEC
 
-/* Define to 1 if `st_atim.tv_nsec' is a member of `struct stat'. */
+/* Define to 1 if `st_atim.tv_nsec' is member of `struct stat'. */
 #undef HAVE_STRUCT_STAT_ST_ATIM_TV_NSEC
 
-/* Define to 1 if `st_birthtimensec' is a member of `struct stat'. */
+/* Define to 1 if `st_birthtimensec' is member of `struct stat'. */
 #undef HAVE_STRUCT_STAT_ST_BIRTHTIMENSEC
 
-/* Define to 1 if `st_birthtimespec.tv_nsec' is a member of `struct stat'. */
+/* Define to 1 if `st_birthtimespec.tv_nsec' is member of `struct stat'. */
 #undef HAVE_STRUCT_STAT_ST_BIRTHTIMESPEC_TV_NSEC
 
-/* Define to 1 if `st_birthtim.tv_nsec' is a member of `struct stat'. */
+/* Define to 1 if `st_birthtim.tv_nsec' is member of `struct stat'. */
 #undef HAVE_STRUCT_STAT_ST_BIRTHTIM_TV_NSEC
 
 /* Define to 1 if the system has the type `struct utsname'. */
@@ -1944,9 +1950,6 @@
 /* Define to the one symbol short name of this package. */
 #undef PACKAGE_TARNAME
 
-/* Define to the home page for this package. */
-#undef PACKAGE_URL
-
 /* Define to the version of this package. */
 #undef PACKAGE_VERSION
 
@@ -1955,6 +1958,9 @@
 
 /* Location of pkcheck program */
 #undef PKCHECK_PATH
+
+/* Pass uid to pkcheck */
+#undef PKCHECK_SUPPORTS_UID
 
 /* Location of polkit-auth program */
 #undef POLKIT_AUTH
@@ -2560,14 +2566,13 @@
    nothing if this is not supported.  Do not define if restrict is
    supported directly.  */
 #undef restrict
-/* Work around a bug in Sun C++: it does not support _Restrict or
-   __restrict__, even though the corresponding Sun C compiler ends up with
-   "#define restrict _Restrict" or "#define restrict __restrict__" in the
-   previous line.  Perhaps some future version of Sun C++ will work with
-   restrict; if so, hopefully it defines __RESTRICT like Sun C does.  */
+/* Work around a bug in Sun C++: it does not support _Restrict, even
+   though the corresponding Sun C compiler does, which causes
+   "#define restrict _Restrict" in the previous line.  Perhaps some future
+   version of Sun C++ will work with _Restrict; if so, it'll probably
+   define __RESTRICT, just as Sun C does.  */
 #if defined __SUNPRO_CC && !defined __RESTRICT
 # define _Restrict
-# define __restrict__
 #endif
 
 /* Define as an integer type suitable for memory locations that can be

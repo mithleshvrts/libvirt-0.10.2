@@ -65,7 +65,7 @@
  * This is an arbitrary limit designed to stop the decoder from trying
  * to allocate unbounded amounts of memory when fed with a bad message.
  */
-const REMOTE_STRING_MAX = 4194304;
+const REMOTE_STRING_MAX = 1048576;
 
 /* A long string, which may NOT be NULL. */
 typedef string remote_nonnull_string<REMOTE_STRING_MAX>;
@@ -91,7 +91,7 @@ const REMOTE_VCPUINFO_MAX = 16384;
 const REMOTE_CPUMAPS_MAX = 8388608;
 
 /* Upper limit on migrate cookie. */
-const REMOTE_MIGRATE_COOKIE_MAX = 4194304;
+const REMOTE_MIGRATE_COOKIE_MAX = 16384;
 
 /* Upper limit on lists of network names. */
 const REMOTE_NETWORK_NAME_LIST_MAX = 16384;
@@ -160,13 +160,13 @@ const REMOTE_DOMAIN_SNAPSHOT_LIST_NAMES_MAX = 1024;
  * Note applications need to be aware of this limit and issue multiple
  * requests for large amounts of data.
  */
-const REMOTE_DOMAIN_BLOCK_PEEK_BUFFER_MAX = 4194304;
+const REMOTE_DOMAIN_BLOCK_PEEK_BUFFER_MAX = 1048576;
 
 /* Maximum length of a memory peek buffer message.
  * Note applications need to be aware of this limit and issue multiple
  * requests for large amounts of data.
  */
-const REMOTE_DOMAIN_MEMORY_PEEK_BUFFER_MAX = 4194304;
+const REMOTE_DOMAIN_MEMORY_PEEK_BUFFER_MAX = 1048576;
 
 /*
  * Maximum length of a security label list.

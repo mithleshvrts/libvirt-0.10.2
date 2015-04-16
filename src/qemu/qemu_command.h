@@ -125,8 +125,7 @@ char * qemuBuildSoundDevStr(virDomainSoundDefPtr sound,
                             qemuCapsPtr caps);
 
 /* Legacy, pre device support */
-char * qemuBuildPCIHostdevPCIDevStr(virDomainHostdevDefPtr dev,
-                                    qemuCapsPtr caps);
+char * qemuBuildPCIHostdevPCIDevStr(virDomainHostdevDefPtr dev);
 /* Current, best practice */
 char * qemuBuildPCIHostdevDevStr(virDomainHostdevDefPtr dev,
                                  const char *configfd,

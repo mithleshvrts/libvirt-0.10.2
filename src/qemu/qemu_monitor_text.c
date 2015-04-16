@@ -510,6 +510,7 @@ int qemuMonitorTextGetCPUInfo(qemuMonitorPtr mon,
 {
     char *qemucpus = NULL;
     char *line;
+    int lastVcpu = -1;
     pid_t *cpupids = NULL;
     size_t ncpupids = 0;
 
@@ -529,11 +530,15 @@ int qemuMonitorTextGetCPUInfo(qemuMonitorPtr mon,
     do {
         char *offset = strchr(line, '#');
         char *end = NULL;
-        int tid = 0;
+        int vcpu = 0, tid = 0;
 
         /* See if we're all done */
         if (offset == NULL)
             break;
+
+        /* Extract VCPU number */
+        if (virStrToLong_i(offset + 1, &end, 10, &vcpu) < 0)
+            goto error;
 
         if (end == NULL || *end != ':')
             goto error;
@@ -547,11 +552,15 @@ int qemuMonitorTextGetCPUInfo(qemuMonitorPtr mon,
         if (end == NULL || !c_isspace(*end))
             goto error;
 
+        if (vcpu != (lastVcpu + 1))
+            goto error;
+
         if (VIR_REALLOC_N(cpupids, ncpupids+1) < 0)
             goto error;
 
-        VIR_DEBUG("pid=%d", tid);
+        VIR_DEBUG("vcpu=%d pid=%d", vcpu, tid);
         cpupids[ncpupids++] = tid;
+        lastVcpu = vcpu;
 
         /* Skip to next data line */
         line = strchr(offset, '\r');
@@ -1881,23 +1890,11 @@ int qemuMonitorTextAddPCIHostDevice(qemuMonitorPtr mon,
 
     memset(guestAddr, 0, sizeof(*guestAddr));
 
-    if (hostAddr->domain) {
-        /* if domain > 0, the caller has already verified that this qemu
-         * supports specifying domain in pci_add command
-         */
-        if (virAsprintf(&cmd,
-                        "pci_add pci_addr=auto host host=%.4x:%.2x:%.2x.%.1x",
-                        hostAddr->domain, hostAddr->bus,
-                        hostAddr->slot, hostAddr->function) < 0) {
-            virReportOOMError();
-            goto cleanup;
-        }
-    } else {
-        if (virAsprintf(&cmd, "pci_add pci_addr=auto host host=%.2x:%.2x.%.1x",
-                        hostAddr->bus, hostAddr->slot, hostAddr->function) < 0) {
-            virReportOOMError();
-            goto cleanup;
-        }
+    /* XXX hostAddr->domain */
+    if (virAsprintf(&cmd, "pci_add pci_addr=auto host host=%.2x:%.2x.%.1x",
+                    hostAddr->bus, hostAddr->slot, hostAddr->function) < 0) {
+        virReportOOMError();
+        goto cleanup;
     }
 
     if (qemuMonitorHMPCommand(mon, cmd, &reply) < 0)

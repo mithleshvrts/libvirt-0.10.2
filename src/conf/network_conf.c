@@ -1,7 +1,7 @@
 /*
  * network_conf.c: network XML handling
  *
- * Copyright (C) 2006-2014 Red Hat, Inc.
+ * Copyright (C) 2006-2012 Red Hat, Inc.
  * Copyright (C) 2006-2008 Daniel P. Berrange
  *
  * This library is free software; you can redistribute it and/or
@@ -56,12 +56,6 @@ VIR_ENUM_DECL(virNetworkForwardHostdevDevice)
 VIR_ENUM_IMPL(virNetworkForwardHostdevDevice,
               VIR_NETWORK_FORWARD_HOSTDEV_DEVICE_LAST,
               "none", "pci", "netdev")
-
-VIR_ENUM_IMPL(virNetworkDNSForwardPlainNames,
-              VIR_NETWORK_DNS_FORWARD_PLAIN_NAMES_LAST,
-              "default",
-              "yes",
-              "no")
 
 virNetworkObjPtr virNetworkFindByUUID(const virNetworkObjListPtr nets,
                                       const unsigned char *uuid)
@@ -963,9 +957,9 @@ virNetworkDNSDefParseXML(const char *networkName,
 
     forwardPlainNames = virXPathString("string(./@forwardPlainNames)", ctxt);
     if (forwardPlainNames) {
-        def->forwardPlainNames
-            = virNetworkDNSForwardPlainNamesTypeFromString(forwardPlainNames);
-        if (def->forwardPlainNames <= 0) {
+        if (STREQ(forwardPlainNames, "yes")) {
+            def->forwardPlainNames = true;
+        } else if (STRNEQ(forwardPlainNames, "no")) {
             virReportError(VIR_ERR_XML_ERROR,
                            _("Invalid dns forwardPlainNames setting '%s' "
                              "in network '%s'"),
@@ -1815,26 +1809,18 @@ static int
 virNetworkDNSDefFormat(virBufferPtr buf,
                        virNetworkDNSDefPtr def)
 {
-    size_t i;
+    int result = 0;
+    int i;
 
-    if (!def || !(def->forwardPlainNames ||
-                  def->nhosts || def->nsrvrecords || def->ntxtrecords))
-        return 0;
+    if (def == NULL)
+        goto out;
 
     virBufferAddLit(buf, "<dns");
     if (def->forwardPlainNames) {
-        const char *fwd = virNetworkDNSForwardPlainNamesTypeToString(def->forwardPlainNames);
-
-        if (!fwd) {
-            virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Unknown forwardPlainNames type %d in network"),
-                           def->forwardPlainNames);
-            return -1;
-        }
-        virBufferAsprintf(buf, " forwardPlainNames='%s'", fwd);
+        virBufferAddLit(buf, " forwardPlainNames='yes'");
         if (!(def->nhosts || def->nsrvrecords || def->ntxtrecords)) {
             virBufferAddLit(buf, "/>\n");
-            return 0;
+            goto out;
         }
     }
 
@@ -1887,7 +1873,8 @@ virNetworkDNSDefFormat(virBufferPtr buf,
     }
     virBufferAdjustIndent(buf, -2);
     virBufferAddLit(buf, "</dns>\n");
-    return 0;
+out:
+    return result;
 }
 
 static int

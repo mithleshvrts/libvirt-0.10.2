@@ -200,7 +200,6 @@ VIR_ENUM_IMPL(qemuCaps, QEMU_CAPS_LAST,
               "ipv6-migration",
               "vnc-share-policy",
               "mlock",
-              "host-pci-multidomain",
     );
 
 struct _qemuCaps {
@@ -960,8 +959,6 @@ qemuCapsComputeCmdFlags(const char *help,
         qemuCapsSet(caps, QEMU_CAPS_DRIVE_SERIAL);
     if (strstr(help, "-pcidevice"))
         qemuCapsSet(caps, QEMU_CAPS_PCIDEVICE);
-    if (strstr(help, "host=[seg:]bus"))
-        qemuCapsSet(caps, QEMU_CAPS_HOST_PCI_MULTIDOMAIN);
     if (strstr(help, "-mem-path"))
         qemuCapsSet(caps, QEMU_CAPS_MEM_PATH);
     if (strstr(help, "-chardev")) {

@@ -1180,27 +1180,6 @@ int qemuMonitorJSONSystemReset(qemuMonitorPtr mon)
 /*
  * [ { "CPU": 0, "current": true, "halted": false, "pc": 3227107138 },
  *   { "CPU": 1, "current": false, "halted": true, "pc": 7108165 } ]
- *
- *   RHEL 6 only:
- *
- *   The downstream qemu version may report the state of the processor
- *   in the "enabled-in-acpi" field. Disabled processors need to be
- *   skipped as they are still tracked by qemu but not active.
- *   The new field is optional. The format of the improved structure:
- *
- *   [ { "enabled-in-acpi" : true,
- *       "current" : true,
- *       "CPU" : 0,
- *       "pc" : -2130449205,
- *       "halted" : true,
- *       "thread_id" : 19611 },
- *     { "enabled-in-acpi" : false,
- *       "current" : false,
- *       "CPU" : 1,
- *       "pc" : -2130505423,
- *       "halted" : true,
- *       "thread_id" : 19612 }
- *   ]
  */
 static int
 qemuMonitorJSONExtractCPUInfo(virJSONValuePtr reply,
@@ -1211,7 +1190,6 @@ qemuMonitorJSONExtractCPUInfo(virJSONValuePtr reply,
     int i;
     int *threads = NULL;
     int ncpus;
-    int cpu = 0;
 
     if (!(data = virJSONValueObjectGet(reply, "return"))) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
@@ -1238,43 +1216,40 @@ qemuMonitorJSONExtractCPUInfo(virJSONValuePtr reply,
 
     for (i = 0 ; i < ncpus ; i++) {
         virJSONValuePtr entry = virJSONValueArrayGet(data, i);
+        int cpu;
         int thread;
-        bool enabled;
-
         if (!entry) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                           _("cpu information was missing an array element"));
+                           _("character device information was missing array element"));
             goto cleanup;
         }
 
-        /* RHEL-only: use the "enabled-in-acpi" field of the returned structure
-         * to filter out processors that were disabled when doing cpu hot-unplug.
-         *
-         * This functionality will remain in the RHEL 6 series as upstream will
-         * go a different route */
-        if (virJSONValueObjectGetBoolean(entry, "enabled-in-acpi",
-                                         &enabled) == 0 &&
-            !enabled)
-            continue;
+        if (virJSONValueObjectGetNumberInt(entry, "CPU", &cpu) < 0) {
+            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                           _("cpu information was missing cpu number"));
+            goto cleanup;
+        }
 
         if (virJSONValueObjectGetNumberInt(entry, "thread_id", &thread) < 0) {
-            /* Some older qemu versions don't report the thread_id,
-             * so treat this as non-fatal, simply returning no data */
+            /* Only qemu-kvm tree includs thread_id, so treat this as
+               non-fatal, simply returning no data */
             ret = 0;
             goto cleanup;
         }
 
-        threads[cpu++] = thread;
-    }
+        if (cpu != i) {
+            virReportError(VIR_ERR_INTERNAL_ERROR,
+                           _("unexpected cpu index %d expecting %d"),
+                           i, cpu);
+            goto cleanup;
+        }
 
-    if (VIR_REALLOC_N(threads, cpu) < 0) {
-        virReportOOMError();
-        goto cleanup;
+        threads[i] = thread;
     }
 
     *pids = threads;
     threads = NULL;
-    ret = cpu;
+    ret = ncpus;
 
 cleanup:
     VIR_FREE(threads);
@@ -3157,7 +3132,7 @@ int qemuMonitorJSONAddDrive(qemuMonitorPtr mon,
     }
     args = NULL; /* cmd owns reference to args now */
 
-    if ((ret = qemuMonitorJSONCommand(mon, cmd, &reply)) < 0)
+    if ((ret = qemuMonitorJSONCommand(mon, cmd, &reply) < 0))
         goto cleanup;
 
     if (qemuMonitorJSONHasError(reply, "CommandNotFound")) {
@@ -3178,7 +3153,7 @@ int qemuMonitorJSONAddDrive(qemuMonitorPtr mon,
     if (!cmd)
         return -1;
 
-    if ((ret = qemuMonitorJSONCommand(mon, cmd, &reply)) < 0)
+    if ((ret = qemuMonitorJSONCommand(mon, cmd, &reply) < 0))
         goto cleanup;
 
     if (qemuMonitorJSONHasError(reply, "CommandNotFound")) {

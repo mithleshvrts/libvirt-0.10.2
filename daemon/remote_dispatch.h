@@ -15983,5 +15983,14 @@ virNetServerProgramProc remoteProcs[] = {
    true,
    1
 },
+{ /* Async event DomainEventPMsuspendDisk => 292 */
+   NULL,
+   0,
+   (xdrproc_t)xdr_void,
+   0,
+   (xdrproc_t)xdr_void,
+   true,
+   0
+},
 };
 size_t remoteNProcs = ARRAY_CARDINALITY(remoteProcs);

@@ -251,17 +251,6 @@ qemuConnectAgent(struct qemud_driver *driver, virDomainObjPtr vm)
     virDomainObjLock(vm);
     priv->agentStart = 0;
 
-    if (agent == NULL)
-        virObjectUnref(vm);
-
-    if (!virDomainObjIsActive(vm)) {
-        qemuAgentClose(agent);
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("guest crashed while connecting to the guest agent"));
-        ret = -2;
-        goto cleanup;
-    }
-
     if (virSecurityManagerClearSocketLabel(driver->securityManager,
                                            vm->def) < 0) {
         VIR_ERROR(_("Failed to clear security context for agent for %s"),
@@ -269,7 +258,13 @@ qemuConnectAgent(struct qemud_driver *driver, virDomainObjPtr vm)
         goto cleanup;
     }
 
+    if (agent == NULL)
+        virObjectUnref(vm);
 
+    if (!virDomainObjIsActive(vm)) {
+        qemuAgentClose(agent);
+        goto cleanup;
+    }
     priv->agent = agent;
 
     if (priv->agent == NULL) {
@@ -1982,7 +1977,7 @@ qemuGetNumadAdvice(virDomainDefPtr def)
 
     cmd = virCommandNewArgList(NUMAD, "-w", NULL);
     virCommandAddArgFormat(cmd, "%d:%llu", def->vcpus,
-                           VIR_DIV_UP(def->mem.max_balloon, 1024));
+                           VIR_DIV_UP(def->mem.cur_balloon, 1024));
 
     virCommandSetOutputBuffer(cmd, &output);
 
@@ -2864,7 +2859,7 @@ qemuProcessStartCPUs(struct qemud_driver *driver, virDomainObjPtr vm,
                      virConnectPtr conn, virDomainRunningReason reason,
                      enum qemuDomainAsyncJob asyncJob)
 {
-    int ret = -1;
+    int ret;
     qemuDomainObjPrivatePtr priv = vm->privateData;
 
     VIR_DEBUG("Using lock state '%s'", NULLSTR(priv->lockState));
@@ -2878,25 +2873,21 @@ qemuProcessStartCPUs(struct qemud_driver *driver, virDomainObjPtr vm,
     }
     VIR_FREE(priv->lockState);
 
-    if (qemuDomainObjEnterMonitorAsync(driver, vm, asyncJob) < 0)
-        goto release;
+    ret = qemuDomainObjEnterMonitorAsync(driver, vm, asyncJob);
+    if (ret == 0) {
+        ret = qemuMonitorStartCPUs(priv->mon, conn);
+        qemuDomainObjExitMonitorWithDriver(driver, vm);
+    }
 
-    ret = qemuMonitorStartCPUs(priv->mon, conn);
-    qemuDomainObjExitMonitorWithDriver(driver, vm);
+    if (ret == 0) {
+        virDomainObjSetState(vm, VIR_DOMAIN_RUNNING, reason);
+    } else {
+        if (virDomainLockProcessPause(driver->lockManager, vm, &priv->lockState) < 0)
+            VIR_WARN("Unable to release lease on %s", vm->def->name);
+        VIR_DEBUG("Preserving lock state '%s'", NULLSTR(priv->lockState));
+    }
 
-    if (ret < 0)
-        goto release;
-
-    virDomainObjSetState(vm, VIR_DOMAIN_RUNNING, reason);
-
- cleanup:
     return ret;
-
- release:
-    if (virDomainLockProcessPause(driver->lockManager, vm, &priv->lockState) < 0)
-        VIR_WARN("Unable to release lease on %s", vm->def->name);
-    VIR_DEBUG("Preserving lock state '%s'", NULLSTR(priv->lockState));
-    goto cleanup;
 }
 
 
@@ -2904,26 +2895,24 @@ int qemuProcessStopCPUs(struct qemud_driver *driver, virDomainObjPtr vm,
                         virDomainPausedReason reason,
                         enum qemuDomainAsyncJob asyncJob)
 {
-    int ret = -1;
+    int ret;
     qemuDomainObjPrivatePtr priv = vm->privateData;
 
     VIR_FREE(priv->lockState);
 
-    if (qemuDomainObjEnterMonitorAsync(driver, vm, asyncJob) < 0)
-        goto cleanup;
+    ret = qemuDomainObjEnterMonitorAsync(driver, vm, asyncJob);
+    if (ret == 0) {
+        ret = qemuMonitorStopCPUs(priv->mon);
+        qemuDomainObjExitMonitorWithDriver(driver, vm);
+    }
 
-    ret = qemuMonitorStopCPUs(priv->mon);
-    qemuDomainObjExitMonitorWithDriver(driver, vm);
+    if (ret == 0) {
+        virDomainObjSetState(vm, VIR_DOMAIN_PAUSED, reason);
+        if (virDomainLockProcessPause(driver->lockManager, vm, &priv->lockState) < 0)
+            VIR_WARN("Unable to release lease on %s", vm->def->name);
+        VIR_DEBUG("Preserving lock state '%s'", NULLSTR(priv->lockState));
+    }
 
-    if (ret < 0)
-        goto cleanup;
-
-    virDomainObjSetState(vm, VIR_DOMAIN_PAUSED, reason);
-    if (virDomainLockProcessPause(driver->lockManager, vm, &priv->lockState) < 0)
-        VIR_WARN("Unable to release lease on %s", vm->def->name);
-    VIR_DEBUG("Preserving lock state '%s'", NULLSTR(priv->lockState));
-
- cleanup:
     return ret;
 }
 
@@ -3260,7 +3249,6 @@ qemuProcessReconnect(void *opaque)
     int state;
     int reason;
     size_t i;
-    int ret;
 
     memcpy(&oldjob, &data->oldjob, sizeof(oldjob));
 
@@ -3286,10 +3274,7 @@ qemuProcessReconnect(void *opaque)
         goto error;
 
     /* Failure to connect to agent shouldn't be fatal */
-    if ((ret = qemuConnectAgent(driver, obj)) < 0) {
-        if (ret == -2)
-            goto error;
-
+    if (qemuConnectAgent(driver, obj) < 0) {
         VIR_WARN("Cannot connect to QEMU guest agent for %s",
                  obj->def->name);
         virResetLastError();
@@ -4013,10 +3998,7 @@ int qemuProcessStart(virConnectPtr conn,
         goto cleanup;
 
     /* Failure to connect to agent shouldn't be fatal */
-    if ((ret = qemuConnectAgent(driver, vm)) < 0) {
-        if (ret == -2)
-            goto cleanup;
-
+    if (qemuConnectAgent(driver, vm) < 0) {
         VIR_WARN("Cannot connect to QEMU guest agent for %s",
                  vm->def->name);
         virResetLastError();
@@ -4492,7 +4474,6 @@ int qemuProcessAttach(virConnectPtr conn ATTRIBUTE_UNUSED,
     virSecurityLabelDefPtr seclabeldef = NULL;
     virSecurityManagerPtr* sec_managers = NULL;
     const char *model;
-    int ret;
 
     VIR_DEBUG("Beginning VM attach process");
 
@@ -4603,10 +4584,7 @@ int qemuProcessAttach(virConnectPtr conn ATTRIBUTE_UNUSED,
         goto cleanup;
 
     /* Failure to connect to agent shouldn't be fatal */
-    if ((ret = qemuConnectAgent(driver, vm)) < 0) {
-        if (ret == -2)
-            goto cleanup;
-
+    if (qemuConnectAgent(driver, vm) < 0) {
         VIR_WARN("Cannot connect to QEMU guest agent for %s",
                  vm->def->name);
         virResetLastError();
